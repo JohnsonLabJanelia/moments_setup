@@ -70,3 +70,9 @@ extract_zst() { # <tarball.zst> <dest-dir>
   need_cmd zstd; mkdir -p "$2"
   zstd -d -c "$1" | tar -xf - -C "$2"
 }
+
+# CUDA 12.2's nvcc supports host gcc <= 12, but Ubuntu 24.04 defaults to gcc-13.
+# On 24.04 we install gcc-12/g++-12 (callers add them to apt) and steer nvcc to
+# g++-12. Echoes the cmake flag on 24.04, nothing on 22.04.
+is_2404() { [ "$OS_VERSION" = "24.04" ]; }
+cuda_host_compiler_flag() { is_2404 && echo "-DCMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-12" || true; }

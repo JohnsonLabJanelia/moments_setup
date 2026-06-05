@@ -11,7 +11,7 @@ fail=0
 log "OS: Ubuntu $OS_VERSION  (target tag: $OS_TAG)"
 case "$OS_VERSION" in
   22.04) ok "22.04 — matches the reference machine (safest)";;
-  24.04) warn "24.04 — supported, but confirm you have the ubuntu2404 DOCA deb (the staged one is ubuntu2204)";;
+  24.04) ok "24.04 — DOCA 3.3.0/2404 + eSDK 24.04 staged; CUDA 12.2 build uses gcc-12 (auto)";;
   *) err "unsupported Ubuntu '$OS_VERSION' (need 22.04 or 24.04)"; fail=1;;
 esac
 

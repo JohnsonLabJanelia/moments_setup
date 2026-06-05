@@ -30,6 +30,12 @@ fi
 if lsmod | grep -q '^nouveau'; then
   die "nouveau is still loaded — reboot, then re-run (initramfs blacklist not yet active)"
 fi
+log "installing kernel headers + build tools (the .run builds a kernel module)"
+sudo apt-get update && sudo apt-get -y install build-essential "linux-headers-$(uname -r)"
+if is_2404 && ! uname -r | grep -qE '^6\.8\.'; then
+  warn "kernel $(uname -r) on 24.04 — driver $DRIVER_VERSION is validated to ~6.8. If the module"
+  warn "fails to build, boot the 24.04 GA 6.8 kernel (the eSDK also targets 6.8.0) or use a newer driver."
+fi
 log "installing driver from $(basename "$A_DRIVER_RUN")"
 confirm "Install NVIDIA driver $DRIVER_VERSION now?" || die "aborted by user"
 sudo sh "$A_DRIVER_RUN" --silent --no-x-check --no-cc-version-check --install-libglvnd

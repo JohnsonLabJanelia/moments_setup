@@ -10,10 +10,11 @@ require_artifact "$A_RED_TAR"
 [ -e "$NVIDIA_PREFIX/TensorRT-$TENSORRT_VERSION/lib/libnvinfer.so" ] || die "run 60_tensorrt_cudnn first"
 
 log "installing red build dependencies (apt)"
+GCC12_PKGS=""; is_2404 && GCC12_PKGS="gcc-12 g++-12"   # CUDA 12.2 nvcc needs gcc<=12 (24.04 default is 13)
 sudo apt-get update
 sudo apt-get -y install build-essential cmake pkg-config git patchelf \
      libeigen3-dev libceres-dev libglew-dev libglfw3-dev libgl1-mesa-dev \
-     libturbojpeg0-dev libopenblas-dev
+     libturbojpeg0-dev libopenblas-dev $GCC12_PKGS
 # NOTE: red's *test* targets need GTest built WITH gmock under /usr/local.
 # The main `red` binary does not, so we build only that target here.
 
@@ -27,7 +28,7 @@ fi
 [ -d "$RED_DIR/lib/onnxruntime" ] || warn "red/lib/onnxruntime missing — JARVIS prediction will be disabled"
 
 log "configuring + building target 'red'"
-( cd "$RED_DIR" && cmake -S . -B release -DCMAKE_BUILD_TYPE=Release \
+( cd "$RED_DIR" && cmake -S . -B release -DCMAKE_BUILD_TYPE=Release $(cuda_host_compiler_flag) \
     && cmake --build release --target red -j"$(nproc)" )
 [ -x "$RED_DIR/release/red" ] || die "build failed: release/red not produced"
 ok "built $RED_DIR/release/red"

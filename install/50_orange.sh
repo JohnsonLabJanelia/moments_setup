@@ -9,9 +9,10 @@ is_done "$STEP_NAME" && { ok "already done"; exit 0; }
 require_artifact "$A_ORANGE_TAR"
 
 log "installing GUI build dependencies (apt)"
+GCC12_PKGS=""; is_2404 && GCC12_PKGS="gcc-12 g++-12"   # CUDA 12.2 nvcc needs gcc<=12 (24.04 default is 13)
 sudo apt-get update
 sudo apt-get -y install build-essential cmake pkg-config git \
-     libglfw3-dev libglew-dev libgl1-mesa-dev
+     libglfw3-dev libglew-dev libgl1-mesa-dev $GCC12_PKGS
 
 ORANGE_DIR="$SRC_PREFIX/orange"
 if [ ! -d "$ORANGE_DIR" ]; then
@@ -23,7 +24,8 @@ fi
 [ -d "$ORANGE_DIR/third_party/imgui" ] || die "vendored submodules missing — bad source archive"
 
 log "building orange (Release)"
-( cd "$ORANGE_DIR" && cmake -S . -B release -DCMAKE_BUILD_TYPE=Release && cmake --build release -j"$(nproc)" )
+( cd "$ORANGE_DIR" && cmake -S . -B release -DCMAKE_BUILD_TYPE=Release $(cuda_host_compiler_flag) \
+    && cmake --build release -j"$(nproc)" )
 [ -x "$ORANGE_DIR/release/orange" ] || die "build failed: release/orange not produced"
 ok "built $ORANGE_DIR/release/orange"
 

@@ -2,7 +2,8 @@
 
 The parts a script **can't** do — done at the keyboard, mostly *before* and *around* the
 OS install. Target hardware: Threadripper PRO 9000-series (WRX90-class board), 2× NVIDIA
-A16 + 1× A4000, 2× quad-port NVIDIA **ConnectX** 25 GbE NICs (Emergent), Ubuntu 22.04.
+A16 + 1× A4000, 2× quad-port NVIDIA **ConnectX** 25 GbE NICs (Emergent). Plan: **Ubuntu 24.04**
+(machine ships with it) on the **GA 6.8 kernel**; 22.04 is the lower-risk alternative.
 
 Reference values below are what the known-good machine shows — match them.
 
@@ -151,7 +152,7 @@ Enter BIOS (Del/F2 at power-on). Set, save, reboot.
 ### Order of operations (how this interleaves with the install scripts)
 
 1. **§A physical → §B BIOS** (before OS).
-2. Install Ubuntu 22.04, copy the USB payload, run `./00_preflight.sh`.
+2. Install/boot Ubuntu 24.04 (GA 6.8 kernel), copy the USB payload, run `./00_preflight.sh`.
 3. `./install_phase1.sh` (driver → CUDA → Emergent/DOCA/Rivermax → FFmpeg → orange),
    re-running after each reboot it asks for.
 4. **§C** after the driver step, **§D–§F** after the Emergent step (step 30).
