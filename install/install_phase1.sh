@@ -7,7 +7,7 @@ source "$INSTALL_DIR/config.env"; source "$INSTALL_DIR/lib/common.sh"
 _state_init
 LOG="$MOMENTS_LOG_DIR/phase1_$(date -u +%Y%m%dT%H%M%SZ).log"
 
-STEPS=(00_preflight 10_nvidia_driver 20_cuda 30_emergent 40_ffmpeg 50_orange)
+STEPS=(00_preflight 05_kernel_check 10_nvidia_driver 20_cuda 30_emergent 40_ffmpeg 50_orange)
 
 log "Phase 1 — orange rob_minimal   (log: $LOG)"
 log "Artifacts: $ARTIFACTS_DIR    OS: $OS_VERSION"

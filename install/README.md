@@ -33,7 +33,8 @@ export ARTIFACTS_DIR=/media/$USER/moments_artifacts
 | # | Script | Does | Reboot? |
 |---|--------|------|---------|
 | 00 | `00_preflight.sh` | read-only checks: OS, GPUs, payload, optional checksums | — |
-| 10 | `10_nvidia_driver.sh` | blacklist nouveau → **reboot** → install driver 535.183.06 → **reboot** | ×2 |
+| 05 | `05_kernel_check.sh` | gate: running kernel ≤ 6.8 so driver 535 can build (override `MOMENTS_ALLOW_KERNEL=1`) | — |
+| 10 | `10_nvidia_driver.sh` | install headers, blacklist nouveau → **reboot** → install driver 535.183.06 → **reboot** | ×2 |
 | 20 | `20_cuda.sh` | CUDA 12.2.2 toolkit (`--toolkit`, no bundled driver) | — |
 | 30 | `30_emergent.sh` | eSDK 4.07 + DOCA-OFED (local deb via `-m`) + Rivermax + license + `nvidia_peermem` | rec. |
 | 40 | `40_ffmpeg.sh` | prebuilt CUDA FFmpeg → `~/nvidia/ffmpeg` | — |
