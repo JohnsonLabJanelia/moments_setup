@@ -154,9 +154,8 @@ See **`install/network/`** (scripts + README). In short:
   `stop_camera_streaming()`'s join() never returns. **Workaround:** run PTP first.
   **Fix (TODO):** guard/only-read `PtpOffset` when sync is active, so single-camera
   recording works without PTP and survives a PTP dropout.
-- **Camera control sliders** (gain / focus / iris) don't write to the camera, and
-  manual lens focus is blocked — the slider→`EVT_CameraSetParam` wiring (camera.cpp /
-  gui.cpp) needs fixing.
+- **Camera control sliders** (gain / focus / iris) — **RESOLVED** (orange `dd1cbc0`): it was
+  GenICam node-name drift + a missing lens init, not a wiring bug. See §10.
 - **GPU Direct (RDMA NIC→GPU) — VALIDATED** (camera DMAs into A16 memory; 8192×7000 HEVC,
   0 drops). Needs three things, each a separate gotcha: `nvidia_peermem` loaded via the EVT
   `start-nvidia-peermem` service, **IOMMU disabled**, and (CUDA-13 only) a `libcudart.so.12`
@@ -179,3 +178,32 @@ ls /opt/EVT/eSDK/lib/libEmergentCamera.so ; cat /opt/mellanox/rivermax/rivermax.
 sudo -E /opt/EVT/eCapture/eCapture        # cameras enumerate + stream
 sudo -E ~/src/orange/release/orange       # preview, then (PTP running) record → real .mp4 + CSV
 ```
+
+---
+
+## 10. Camera control & GenICam node-name drift
+
+Emergent **GenICam node names drift across camera firmware / eSDK / eCapture versions**,
+and **eCapture's display labels are NOT the node names**. orange talks to the camera by
+literal node name, so a rename makes a control silently no-op (the range read returns 0, so
+the value set is skipped) or fail with **`EVT_ERROR_GENICAM_NOT_MATCH` (281)** — "parameter
+not matched", the tell-tale that a node name is wrong. Seen on the June-2026 RF camera
+(HB-65000GC, FW **3.95**, SFNC **2.5**, Canon **RF** 100mm f/2.8 L MACRO):
+
+- **Gain → `GainRaw`** (UInt32). eCapture labels it "Digital Gain"; the old `"Gain"` node is
+  gone and returns 281. orange now picks `GainRaw`, falling back to `Gain` for older cameras.
+- **EF/RF lens needs initialization.** `Focus`/`Iris` are uncontrollable (no valid range)
+  until you run the **`IrisInit`** and **`FocusInit`** GenICam *commands* once after open
+  (eCapture exposes them as buttons; older firmware used "set Focus/Iris = 0"). orange runs
+  them on open when the camera config has `"lens_control": true`, and has an
+  "Init Lens (Iris+Focus)" GUI button for manual re-init (RF lens **detection is flaky** —
+  `LensName` can read `NO LENS` on a fresh open even though the lens works). For robust
+  detection prefer the `LensPresent` / `LensMountPresent` booleans over the `LensName` string.
+
+**How to resolve a rename (don't guess):** in eCapture, export the camera's **Device
+Settings / GenICam XML** — it lists every node's exact **name + type + value**. A captured
+example for this camera is in [`reference/2016977_Device_Settings.txt`](reference/2016977_Device_Settings.txt)
+(shows `GainRaw UInt32`, `Iris`/`Focus UInt32`, `AutoGain Boolean`, the `Lens*` and `Uart*`
+nodes, etc.). Then point orange at the real name. These fixes are in orange `rob_minimal`
+(commit `dd1cbc0`) and are backward-compatible with the CUDA-12.2 reference cameras.
+
