@@ -6,6 +6,14 @@ labeling). This repo (`moments_setup`) contains the installer scripts and docs. 
 whole file before doing anything. The stack is **brittle and version-pinned** — your job is
 to follow the proven path exactly, not to "improve" or update versions.
 
+> 🆕 **Setting up a Blackwell GPU / Ubuntu 24.04 box?** This file and the `install/`
+> scripts target the 22.04 / Ampere / CUDA-12.2 **reference** machine. A Blackwell
+> display GPU (sm_120) cannot run the pinned driver 535 / CUDA 12.2, so that build
+> needs driver 590 / CUDA 13.1 and a few code/process changes. **Read
+> [`BLACKWELL_2404_NOTES.md`](BLACKWELL_2404_NOTES.md) first** — it's the field-tested
+> runbook from the June-2026 build (hardware reality, BIOS/boot, versions, the orange
+> CUDA-13 changes, GPU ordering, and camera network + PTP setup in `install/network/`).
+
 ---
 
 ## 0. Prime directives (read first)
