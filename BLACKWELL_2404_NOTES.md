@@ -157,9 +157,10 @@ See **`install/network/`** (scripts + README). In short:
 - **Camera control sliders** (gain / focus / iris) don't write to the camera, and
   manual lens focus is blocked — the slider→`EVT_CameraSetParam` wiring (camera.cpp /
   gui.cpp) needs fixing.
-- **GPU Direct (RDMA NIC→GPU) untested here.** Requires `sudo modprobe nvidia_peermem`,
-  then set `"gpu_direct": true` in the camera config. NIC↔Blackwell P2P on this WRX90
-  topology is unproven; first light ran with `gpu_direct: false`.
+- **GPU Direct (RDMA NIC→GPU) — VALIDATED** (camera DMAs into A16 memory; 8192×7000 HEVC,
+  0 drops). Needs three things, each a separate gotcha: `nvidia_peermem` loaded via the EVT
+  `start-nvidia-peermem` service, **IOMMU disabled**, and (CUDA-13 only) a `libcudart.so.12`
+  shim for the eSDK GPUDirect libs. Full procedure + scripts: **`install/gpu-direct/`**.
 - **Verify the CUDA-12.2 reference build** of the new orange commits (only built on
   CUDA 13 so far).
 - Camera reports a **9344×7000** sensor; a configured `width` < 9344 is a horizontal
