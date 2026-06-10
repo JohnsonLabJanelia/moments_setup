@@ -170,8 +170,14 @@ See **`install/network/`** (scripts + README). In short:
   shim for the eSDK GPUDirect libs. Full procedure + scripts: **`install/gpu-direct/`**.
 - **Verify the CUDA-12.2 reference build** of the new orange commits (only built on
   CUDA 13 so far).
-- Camera reports a **9344×7000** sensor; a configured `width` < 9344 is a horizontal
-  crop (OffsetX). Set `width: 9344` for the full sensor.
+- Camera reports a **9344×7000** sensor; a `width`/`height` smaller than that is a crop.
+  Position the crop within the sensor with **`offsetx`/`offsety`** in the camera config
+  (`~/orange_data/config/local/<preset>/<serial>.json`) — both default to 0 (top-left) when
+  omitted. Constraints: offsets are snapped to multiples of 16, and `offsetx + width ≤ 9344`,
+  `offsety + height ≤ 7000` (the camera clamps an out-of-range offset). For the full sensor
+  set `width: 9344`, `height: 7000` (offsets 0). orange applies the offset *after* width/height
+  on open, so the OffsetX/Y max reflects the crop. (orange `rob_minimal` `d17eb9b` — the
+  config offsetx/offsety were previously hard-coded to 0 at camera open and ignored.)
 
 ---
 
