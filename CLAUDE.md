@@ -13,6 +13,12 @@ to follow the proven path exactly, not to "improve" or update versions.
 > [`BLACKWELL_2404_NOTES.md`](BLACKWELL_2404_NOTES.md) first** — it's the field-tested
 > runbook from the June-2026 build (hardware reality, BIOS/boot, versions, the orange
 > CUDA-13 changes, GPU ordering, and camera network + PTP setup in `install/network/`).
+>
+> **Both apps now run on the Blackwell box (June 2026):** `orange` is fully working
+> (capture/record/GPU-Direct/PTP/lens), and **core `red`** builds + passes its tests +
+> plays back recorded video (red `xp` `d9d2a09`). For red on 24.04/CUDA-13 see
+> [`RED_2404_NOTES.md`](RED_2404_NOTES.md). (red's ML inference — JARVIS/SAM — is the one
+> remaining "Phase B" piece, not yet done.)
 
 ---
 
@@ -61,7 +67,10 @@ oracle. The new box differs in OS (24.04) — see §5 for what that changes.
   Emergent eSDK + DOCA/Rivermax, custom FFmpeg.
 - **Phase 2 (after orange works):** `red` (branch `xp`). Offline video labeling + JARVIS pose. Needs
   everything orange shares **plus** TensorRT 8.6 + cuDNN 8.9 + ONNX Runtime. **red has NO Emergent
-  dependency** (it doesn't talk to cameras).
+  dependency** (it doesn't talk to cameras). On the Blackwell box this splits into **Phase 2a — core
+  red** (playback/calibration/triangulation/annotation; no ML) and **Phase 2b — ML inference**
+  (JARVIS/SAM). Core red is **done & working** there (red `xp` `d9d2a09`); Phase 2b is not yet done —
+  see [`RED_2404_NOTES.md`](RED_2404_NOTES.md).
 
 Get orange fully working before touching red.
 
