@@ -47,6 +47,9 @@ sudo /bin/ptp_start.sh
 sudo /bin/sync_NICs.sh
 ```
 
+> 💡 **You usually don't need to run PTP by hand** — use the `orange` launcher below,
+> which starts both daemons in the background and stops them when orange exits.
+
 Success looks like: `ptp4l` reaches **MASTER** ("assuming the grand master role"),
 `phc2sys` offset converges to a small stable value, and each camera's **PtpStatus →
 Slave** with **PtpOffset ≈ 0**.
@@ -59,6 +62,35 @@ throws inside the EVT SDK and **hangs orange on stop** — even with a single ca
 So always start `ptp_start.sh` + `sync_NICs.sh` before recording. (Preview-only works
 without PTP.) See the known-issues list in `../../BLACKWELL_2404_NOTES.md`.
 
+## Convenience: the `orange` launcher
+
+`orange_launcher.sh` wraps the whole "start PTP, then run orange" dance into one
+command so day-to-day users don't have to manage PTP terminals:
+
+```bash
+# install once (symlink onto PATH as `orange`):
+sudo ln -sf "$PWD/orange_launcher.sh" /usr/local/bin/orange
+# then, every session, just:
+orange                 # extra args pass through to the orange binary
+```
+
+What it does: starts `ptp4l` + `phc2sys` as **background** daemons (logging to
+`~/.orange/logs/{ptp4l,phc2sys}.log`), waits for `ptp4l` to come up, prints a one-line
+status, then runs orange in the foreground under `sudo -E`. When orange exits — cleanly,
+on Ctrl-C, or on a crash — a `trap` stops both daemons. No extra terminals; watch sync
+live with `tail -f ~/.orange/logs/phc2sys.log`. If PTP is already running (e.g. you
+started it by hand), it reuses those and leaves them up on exit.
+
+Overrides: `ORANGE_BIN=…` (default `~/src/orange/release/orange`), `ORANGE_LOGDIR=…`.
+Caveat: a `trap` can't fire on `kill -9` / power loss — for crash-proof, self-healing PTP
+use systemd units instead.
+
+⚠ **Machine-specific.** The launcher inherits `ptp_start.sh`'s hard-coded `-i` NIC port
+list (see the interface-names warning at the top of this README), so on a *different* box
+`ptp4l` won't start until you edit that list to match `list_camera_nics.sh`. The launcher
+fails loudly in that case (prints a `ptp4l failed to start` error pointing at the log)
+rather than running orange without sync. `sync_NICs.sh` (`phc2sys -a`) is portable as-is.
+
 ## Files
 
 | File | What it does |
@@ -69,3 +101,4 @@ without PTP.) See the known-issues list in `../../BLACKWELL_2404_NOTES.md`.
 | `ptp4l.conf` | `ptp4l` config (boundary clock across NIC ports) → `/etc/ptp4l.conf` |
 | `ptp_start.sh` | Run host as PTP grandmaster on the camera ports → `/bin/` |
 | `sync_NICs.sh` | `phc2sys -a -rr -m` (system clock ↔ NIC PHC) → `/bin/` |
+| `orange_launcher.sh` | One-command launcher: bg PTP + foreground orange, auto-teardown → symlink `/usr/local/bin/orange` |

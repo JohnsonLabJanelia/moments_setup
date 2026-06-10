@@ -148,6 +148,10 @@ See **`install/network/`** (scripts + README). In short:
 - **PTP is mandatory before recording.** orange reads `PtpOffset` every frame; without
   a running grandmaster the EVT read throws and hangs orange on stop (see §8). Run
   `ptp_start.sh` + `sync_NICs.sh` first. Confirm camera `PtpStatus = Slave`.
+- **Easiest: use the `orange` launcher** (`install/network/orange_launcher.sh`, symlinked
+  to `/usr/local/bin/orange`). It starts both PTP daemons in the background, runs orange in
+  the foreground, and stops PTP automatically when orange exits/crashes — so users don't
+  manage PTP terminals. See `install/network/README.md`.
 
 ---
 
