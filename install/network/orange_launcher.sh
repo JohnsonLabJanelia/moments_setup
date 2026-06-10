@@ -76,7 +76,14 @@ if pgrep -x ptp4l >/dev/null; then
     echo "[orange] ptp4l already running — reusing it (left up on exit)."
 else
     echo "[orange] starting PTP grandmaster (ptp4l)...   log: $LOGDIR/ptp4l.log"
-    setsid "$PTP_START" >"$LOGDIR/ptp4l.log" 2>&1 &
+    # NOTE: do NOT setsid here. ptp_start.sh calls `sudo ptp4l` internally, and
+    # sudo's cached credential (from the `sudo -v` above) is tied to this
+    # terminal — setsid would detach the controlling TTY and sudo would fail
+    # with "a terminal is required to read the password". Backgrounding with &
+    # keeps the TTY; the daemon still isn't torn down by a stray Ctrl-C because
+    # teardown is driven by the trap (and reused/external daemons live in
+    # another session).
+    "$PTP_START" >"$LOGDIR/ptp4l.log" 2>&1 &
     STARTED_PTP4L=1
     # Wait (up to ~10s) for ptp4l to actually come up before disciplining the clock.
     for _ in {1..20}; do pgrep -x ptp4l >/dev/null && break; sleep 0.5; done
@@ -92,7 +99,7 @@ if pgrep -x phc2sys >/dev/null; then
     echo "[orange] phc2sys already running — reusing it (left up on exit)."
 else
     echo "[orange] starting clock sync (phc2sys)...      log: $LOGDIR/phc2sys.log"
-    setsid "$SYNC_NICS" >"$LOGDIR/phc2sys.log" 2>&1 &
+    "$SYNC_NICS" >"$LOGDIR/phc2sys.log" 2>&1 &   # not setsid — see ptp4l note above
     STARTED_PHC2SYS=1
 fi
 
@@ -101,9 +108,23 @@ if [[ "$STARTED_PTP4L" == 1 || "$STARTED_PHC2SYS" == 1 ]]; then
 fi
 echo "[orange] watch sync live with:  tail -f $LOGDIR/phc2sys.log"
 
-echo "[orange] launching orange (preview window opens; pick your camera preset)..."
+# orange loads its fonts via paths relative to the CWD (e.g.
+# "fonts/forkawesome-webfont.ttf"), so it must run from the directory that
+# contains fonts/ — otherwise the ForkAwesome icons (play/stop/record dots)
+# render as question marks. Find that dir relative to the binary.
+ORANGE_RUN_DIR="$(dirname "$ORANGE_BIN")"
+for d in "$ORANGE_RUN_DIR" "$ORANGE_RUN_DIR/.."; do
+    if [[ -d "$d/fonts" ]]; then ORANGE_RUN_DIR="$(cd "$d" && pwd)"; break; fi
+done
+cd "$ORANGE_RUN_DIR"
+
+echo "[orange] launching orange (cwd: $ORANGE_RUN_DIR; log: $LOGDIR/orange.log)"
+echo "[orange] (preview window opens; pick your camera preset)"
 set +e
-sudo -E "$ORANGE_BIN" "$@"
-rc=$?
+# tee so you see output live AND it's captured for debugging. PIPESTATUS[0] is
+# orange's real exit code (tee's would always be 0). The log is written by tee
+# running as your user, so it's user-owned.
+sudo -E "$ORANGE_BIN" "$@" 2>&1 | tee "$LOGDIR/orange.log"
+rc=${PIPESTATUS[0]}
 set -e
 exit "$rc"   # EXIT trap runs cleanup() regardless of how orange ended
