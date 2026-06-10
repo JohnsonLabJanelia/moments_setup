@@ -52,40 +52,54 @@ SYNC_NICS="$(find_script sync_NICs.sh)" || { echo "[orange] ERROR: sync_NICs.sh 
 
 mkdir -p "$LOGDIR"
 
-# Only tear down PTP daemons that WE started (don't kill a pre-existing/systemd one).
-MANAGE_PTP=1
+# Per-daemon aware: ptp4l and phc2sys are checked/started independently, and on
+# exit we tear down ONLY the ones THIS launcher started — a daemon that was
+# already running (by hand or via systemd) is reused and left up untouched.
+STARTED_PTP4L=0
+STARTED_PHC2SYS=0
 cleanup() {
-    [[ "$MANAGE_PTP" == 1 ]] || return 0
-    echo "[orange] stopping PTP (ptp4l + phc2sys)..."
-    sudo pkill -x phc2sys 2>/dev/null || true
-    sudo pkill -x ptp4l   2>/dev/null || true
+    if [[ "$STARTED_PHC2SYS" == 1 || "$STARTED_PTP4L" == 1 ]]; then
+        echo "[orange] stopping PTP daemon(s) this launcher started..."
+    fi
+    # pkill by name is safe here: we only set STARTED_*=1 when that daemon was
+    # NOT already running, so the only instance alive is the one we launched.
+    [[ "$STARTED_PHC2SYS" == 1 ]] && { sudo pkill -x phc2sys 2>/dev/null || true; }
+    [[ "$STARTED_PTP4L"  == 1 ]] && { sudo pkill -x ptp4l   2>/dev/null || true; }
+    return 0
 }
 trap cleanup EXIT INT TERM
 
-if pgrep -x ptp4l >/dev/null || pgrep -x phc2sys >/dev/null; then
-    echo "[orange] NOTE: ptp4l/phc2sys already running; reusing them and leaving them up on exit." >&2
-    MANAGE_PTP=0
-fi
-
 sudo -v   # prompt for the password once; cache it so backgrounded sudos don't re-prompt
 
-if [[ "$MANAGE_PTP" == 1 ]]; then
+# --- ptp4l (PTP grandmaster) ---
+if pgrep -x ptp4l >/dev/null; then
+    echo "[orange] ptp4l already running — reusing it (left up on exit)."
+else
     echo "[orange] starting PTP grandmaster (ptp4l)...   log: $LOGDIR/ptp4l.log"
     setsid "$PTP_START" >"$LOGDIR/ptp4l.log" 2>&1 &
-
+    STARTED_PTP4L=1
     # Wait (up to ~10s) for ptp4l to actually come up before disciplining the clock.
     for _ in {1..20}; do pgrep -x ptp4l >/dev/null && break; sleep 0.5; done
     if ! pgrep -x ptp4l >/dev/null; then
         echo "[orange] ERROR: ptp4l failed to start — see $LOGDIR/ptp4l.log" >&2
-        exit 1
+        exit 1   # EXIT trap will clean up anything we started
     fi
+fi
 
+# --- phc2sys (discipline system clock to the NIC PHC) ---
+# Reached only once ptp4l is confirmed up (pre-existing or just started).
+if pgrep -x phc2sys >/dev/null; then
+    echo "[orange] phc2sys already running — reusing it (left up on exit)."
+else
     echo "[orange] starting clock sync (phc2sys)...      log: $LOGDIR/phc2sys.log"
     setsid "$SYNC_NICS" >"$LOGDIR/phc2sys.log" 2>&1 &
-
-    echo "[orange] PTP is running in the background; it stops automatically when orange exits."
-    echo "[orange] watch sync live with:  tail -f $LOGDIR/phc2sys.log"
+    STARTED_PHC2SYS=1
 fi
+
+if [[ "$STARTED_PTP4L" == 1 || "$STARTED_PHC2SYS" == 1 ]]; then
+    echo "[orange] PTP daemon(s) started by this launcher will stop when orange exits."
+fi
+echo "[orange] watch sync live with:  tail -f $LOGDIR/phc2sys.log"
 
 echo "[orange] launching orange (preview window opens; pick your camera preset)..."
 set +e

@@ -77,9 +77,13 @@ orange                 # extra args pass through to the orange binary
 What it does: starts `ptp4l` + `phc2sys` as **background** daemons (logging to
 `~/.orange/logs/{ptp4l,phc2sys}.log`), waits for `ptp4l` to come up, prints a one-line
 status, then runs orange in the foreground under `sudo -E`. When orange exits — cleanly,
-on Ctrl-C, or on a crash — a `trap` stops both daemons. No extra terminals; watch sync
-live with `tail -f ~/.orange/logs/phc2sys.log`. If PTP is already running (e.g. you
-started it by hand), it reuses those and leaves them up on exit.
+on Ctrl-C, or on a crash — a `trap` stops the daemons. No extra terminals; watch sync
+live with `tail -f ~/.orange/logs/phc2sys.log`.
+
+It is **per-daemon aware**: `ptp4l` and `phc2sys` are checked/started independently, so
+if only one is already running it starts just the missing one. On exit it stops **only
+the daemons it started** — anything you started by hand (or via systemd) is reused and
+left running untouched.
 
 Overrides: `ORANGE_BIN=…` (default `~/src/orange/release/orange`), `ORANGE_LOGDIR=…`.
 Caveat: a `trap` can't fire on `kill -9` / power loss — for crash-proof, self-healing PTP
