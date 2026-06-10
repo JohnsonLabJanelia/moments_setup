@@ -9,6 +9,10 @@ this; treat `CLAUDE.md`'s pinned versions (§0) as reference-machine-only.
 The whole thing works: live capture, debayer + NVENC on the A16s, FFmpeg mux to
 HEVC `.mp4` with a per-frame PTP metadata CSV, previewing on the Blackwell.
 
+> For the **`red`** app (Phase 2) on this same box, see the companion
+> [`RED_2404_NOTES.md`](RED_2404_NOTES.md): core red already builds + passes its tests
+> on 24.04/CUDA-13, and the ML-inference (TensorRT/SAM) plan is written up there.
+
 ---
 
 ## 1. What the machine actually is (vs CLAUDE.md's assumptions)

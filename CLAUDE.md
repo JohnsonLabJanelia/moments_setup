@@ -223,9 +223,13 @@ log in `~/.moments-setup/logs/` for the full output of the last run.
 - **Verified on the reference machine (22.04):** orange builds clean against eSDK 4.07 (0 unresolved
   Emergent symbols); red xp builds against TensorRT 8.6. The scripts pass `bash -n` and the
   read-only preflight runs green.
-- **NOT yet verified:** the full destructive install (driver/DOCA), and **any build on 24.04**. The
-  new machine is the first real run. Treat build/runtime failures as new information, capture exact
-  output, and work with Rob — don't paper over them.
+- **Verified on the Blackwell / 24.04 / CUDA-13.1 box:** orange fully working (see
+  `BLACKWELL_2404_NOTES.md`); **core red** builds + passes its headless suites (red `xp` `d9d2a09`;
+  see `RED_2404_NOTES.md`). red's ML inference (JARVIS/SAM, "Phase B") is **not yet** done on 24.04.
+- **NOT yet verified:** the full destructive install (driver/DOCA) start-to-finish; red's ML
+  inference on CUDA 13; and the new red commits on the 22.04 reference box (built only on 24.04 so
+  far — they're written to be backward-compatible). Treat build/runtime failures as new information,
+  capture exact output, and work with Rob — don't paper over them.
 
 ---
 
@@ -237,3 +241,6 @@ log in `~/.moments-setup/logs/` for the full output of the last run.
 - `moments_artifacts/README.md` (on the USB) — payload manifest + version watch-items.
 - The `orange` and `red` repos build from source on this machine; `red/CMakeLists.txt` (Linux
   `else()` branch) is the authoritative red dependency spec (the red README's Linux section is stale).
+- [`BLACKWELL_2404_NOTES.md`](BLACKWELL_2404_NOTES.md) — orange on this Blackwell / 24.04 / CUDA-13 box.
+- [`RED_2404_NOTES.md`](RED_2404_NOTES.md) — red (Phase 2) on this box: the 24.04/CUDA-13 build
+  fixes (committed to red `xp` `d9d2a09`) + the Phase-B ML-inference (TensorRT/SAM) plan.
