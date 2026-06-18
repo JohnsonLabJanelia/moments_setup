@@ -54,26 +54,40 @@ Success looks like: `ptp4l` reaches **MASTER** ("assuming the grand master role"
 `phc2sys` offset converges to a small stable value, and each camera's **PtpStatus →
 Slave** with **PtpOffset ≈ 0**.
 
-## Read-then-match (headless alternative — often easier)
+## Read-then-match — `match_camera_ports.sh` (headless, one command)
 
-Instead of forcing new IPs onto the cameras (`.21`), you can **keep the cameras' existing
-persistent IPs and set each host port to match**. This needs no GUI and no per-camera write:
+Instead of forcing new IPs onto the cameras, **keep the cameras' existing persistent IPs and
+set each host port to match**. One script does the whole discover → derive → configure loop —
+no GUI, no per-camera write, no hand-editing a MAP:
 
 ```bash
-# 1. Discover every camera's IP + serial + which host port it's on. Broadcast (-o b) finds
-#    cameras even when the host port is on a different subnet, so you can do this first:
-sudo LD_LIBRARY_PATH=/opt/EVT/eSDK/lib /opt/EVT/eSDK/tools/evttools -d -o b
-#    -> "Camera 00: 192.168.110.23 (sn 2012861 ...) on: 192.168.40.20"   (host IP = that port)
-
-# 2. Put each NIC port on its camera's /24 (host .20). Edit the MAP in
-#    configure_camera_ports.sh to the discovered subnets, run it, then re-activate live ports:
-sudo ./configure_camera_ports.sh
-for c in cam0 cam1 cam2 cam4 cam5 cam6 cam7; do sudo nmcli connection up "$c"; done
-
-# 3. Confirm reachability + matched discovery:
-for n in 110 120 130 140 150 160 170; do ping -c1 -W1 192.168.$n.23 >/dev/null && echo "$n ok"; done
-sudo LD_LIBRARY_PATH=/opt/EVT/eSDK/lib /opt/EVT/eSDK/tools/evttools -d -o b   # each cam "on:" its subnet
+sudo ./match_camera_ports.sh           # DRY RUN: print the discovered camera -> port -> subnet plan
+sudo ./match_camera_ports.sh --apply   # configure the ports (persistent nmcli profiles) + verify
 ```
+
+It runs `evttools -d -o b` (broadcast discovery works **before** the host IPs match, and the
+camera replies on the wire it's cabled to), reads each camera's IP + serial + the port it's on
+(the `on:` host IP), and sets that port onto the camera's `/24` (host `.20` by default, MTU 9000,
+no default route). Env overrides: `HOST_OCTET`, `MTU`. Output looks like:
+
+```
+IFACE            HOST_IP            CAMERA_IP        SERIAL
+enp225s0f0np0    192.168.110.20/24  192.168.110.23   2012861
+enp9s0f0np0      192.168.150.20/24  192.168.150.23   2012853
+...
+```
+
+<details><summary>Doing it by hand instead (what the script automates)</summary>
+
+```bash
+# 1. Discover: camera IP + serial + which host port it's on:
+sudo LD_LIBRARY_PATH=/opt/EVT/eSDK/lib /opt/EVT/eSDK/tools/evttools -d -o b
+#    -> "Camera 00: 192.168.110.23 (sn 2012861 ...) on: 192.168.40.20"  (host IP = that port)
+# 2. Map that host IP to its interface (`ip -br addr`), set the interface to the camera's /24
+#    (host .20) via configure_camera_ports.sh's MAP (or nmcli directly), then `nmcli connection up`.
+# 3. Confirm: ping each camera's .23, and re-run evttools — each cam now "on:" its own subnet.
+```
+</details>
 
 ## Validate streaming headless (no GUI, no monitor)
 
@@ -133,7 +147,8 @@ rather than running orange without sync. `sync_NICs.sh` (`phc2sys -a`) is portab
 |---|---|
 | `list_camera_nics.sh` | List NIC ports + driver + PHC; flags the ConnectX camera NICs |
 | `ethernet_setup.sh` | Configure **one** port (args: iface, CIDR, conn-name, MTU) |
-| `configure_camera_ports.sh` | Configure **all** camera ports in one pass (edit MAP) |
+| `configure_camera_ports.sh` | Configure **all** camera ports in one pass (edit MAP by hand) |
+| `match_camera_ports.sh` | **Auto** read-then-match: discover cameras (`evttools`) → set each port to its camera's subnet (no MAP editing) |
 | `ptp4l.conf` | `ptp4l` config (boundary clock across NIC ports) → `/etc/ptp4l.conf` |
 | `ptp_start.sh` | Run host as PTP grandmaster on the camera ports → `/bin/` |
 | `sync_NICs.sh` | `phc2sys -a -rr -m` (system clock ↔ NIC PHC) → `/bin/` |

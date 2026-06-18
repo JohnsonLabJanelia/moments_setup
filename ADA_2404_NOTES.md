@@ -209,22 +209,18 @@ The cameras keep their **existing persistent IPs** (here `192.168.1X0.23`). Rath
 onto them, **read each camera's IP and set the host NIC port to the same /24** (host `.20`, camera
 `.23`). This is faster and fully headless.
 
+One command does the whole discover → derive → configure loop
+(`install/network/match_camera_ports.sh`):
 ```bash
-# 1. Discover every camera, its IP, serial, and which host port it's on (broadcast works across
-#    a subnet mismatch, so you can discover BEFORE matching the host IPs):
-sudo LD_LIBRARY_PATH=/opt/EVT/eSDK/lib /opt/EVT/eSDK/tools/evttools -d -o b
-#    -> "Camera 00: 192.168.110.23 (sn 2012861 ...) on: 192.168.40.20"  (the host IP = that port)
-
-# 2. Set each NIC port to its camera's subnet, host .20 (edit install/network/configure_camera_ports.sh
-#    MAP to the discovered subnets, then run it). Re-activate live ports so new IPs apply:
-sudo ./configure_camera_ports.sh
-for c in cam0 cam1 cam2 cam4 cam5 cam6 cam7; do sudo nmcli connection up "$c"; done
-
-# 3. Confirm: every camera pingable + discovered on its matching host subnet:
-for n in 110 120 130 140 150 160 170; do ping -c1 -W1 192.168.$n.23 >/dev/null && echo "$n ok"; done
+cd install/network
+sudo ./match_camera_ports.sh           # DRY RUN: print the camera -> port -> subnet plan
+sudo ./match_camera_ports.sh --apply   # configure the ports (persistent nmcli) + ping-verify
 ```
-Interface names are PCI-derived — always re-map `configure_camera_ports.sh` (MAP) **and**
-`ptp_start.sh` (`-i` list) to `list_camera_nics.sh` output. See `install/network/README.md`.
+It runs `evttools -d -o b` (broadcast discovery works *before* the host IPs match — the camera
+replies on the wire it's cabled to, reported as the `on:` host IP), maps that to the interface,
+and sets the port onto the camera's `/24` (host `.20`, MTU 9000, no default route). Cameras are
+never written. PTP next: still re-map `ptp_start.sh`'s `-i` list to the ConnectX ports
+(`list_camera_nics.sh`).
 
 ---
 
