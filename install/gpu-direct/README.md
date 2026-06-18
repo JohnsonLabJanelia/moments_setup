@@ -23,6 +23,20 @@ are satisfied. Each was a separate gotcha on this box:
    (Note: the module name has an underscore — `lsmod | grep nvidia-peermem` with a dash
    matches nothing.)
 
+   ⚠ **If `modprobe nvidia_peermem` fails with `Invalid argument` (EINVAL) and no dmesg:**
+   Ubuntu's **precompiled** `linux-modules-nvidia-NNN-open` ships `nvidia-peermem.ko` as a
+   **no-op stub** (built with no MOFED/IB peer-memory headers — `nm` shows none of
+   `nvidia_p2p_*` / `ib_register_peer_memory_client`), so its init just returns EINVAL. This is
+   **not** a driver↔DOCA version mismatch. Fix: rebuild the driver via DKMS *after* DOCA is
+   installed so peermem is compiled MOFED-aware:
+   ```bash
+   sudo ./fix_nvidia_peermem_dkms.sh    # installs nvidia-dkms-NNN-open, dkms install --force,
+                                        # removes the precompiled flavour, verifies, then reboot
+   ```
+   Loaded-and-registered looks like `ib_uverbs ... N nvidia_peermem,...` in `lsmod`.
+   Do **not** use the EVT-bundled `nvidia-peer-memory 1.1` (`nv_peer_mem`) — it's too old for
+   modern drivers (its `nvidia_p2p_*` symbol CRCs disagree) and won't load.
+
 2. **IOMMU disabled** — EVT readme: *"IOMMU must be disabled for GPU-Direct"* (it's
    optional for host streaming). With it on, the NIC↔GPU P2P DMA is blocked → ENOENT.
    ```bash

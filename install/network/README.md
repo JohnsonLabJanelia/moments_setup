@@ -54,6 +54,38 @@ Success looks like: `ptp4l` reaches **MASTER** ("assuming the grand master role"
 `phc2sys` offset converges to a small stable value, and each camera's **PtpStatus →
 Slave** with **PtpOffset ≈ 0**.
 
+## Read-then-match (headless alternative — often easier)
+
+Instead of forcing new IPs onto the cameras (`.21`), you can **keep the cameras' existing
+persistent IPs and set each host port to match**. This needs no GUI and no per-camera write:
+
+```bash
+# 1. Discover every camera's IP + serial + which host port it's on. Broadcast (-o b) finds
+#    cameras even when the host port is on a different subnet, so you can do this first:
+sudo LD_LIBRARY_PATH=/opt/EVT/eSDK/lib /opt/EVT/eSDK/tools/evttools -d -o b
+#    -> "Camera 00: 192.168.110.23 (sn 2012861 ...) on: 192.168.40.20"   (host IP = that port)
+
+# 2. Put each NIC port on its camera's /24 (host .20). Edit the MAP in
+#    configure_camera_ports.sh to the discovered subnets, run it, then re-activate live ports:
+sudo ./configure_camera_ports.sh
+for c in cam0 cam1 cam2 cam4 cam5 cam6 cam7; do sudo nmcli connection up "$c"; done
+
+# 3. Confirm reachability + matched discovery:
+for n in 110 120 130 140 150 160 170; do ping -c1 -W1 192.168.$n.23 >/dev/null && echo "$n ok"; done
+sudo LD_LIBRARY_PATH=/opt/EVT/eSDK/lib /opt/EVT/eSDK/tools/evttools -d -o b   # each cam "on:" its subnet
+```
+
+## Validate streaming headless (no GUI, no monitor)
+
+Prove the whole NIC → DOCA → Rivermax → eSDK → camera path — and GPU-Direct — before opening orange:
+
+```bash
+cd /opt/EVT/eSDK/tools; export LD_LIBRARY_PATH=/opt/EVT/eSDK/lib
+sudo -E ./multistream -n ^ -c <N>          # stream N cams host-staged.  watch: f:21/21 d:0 m:0
+sudo -E ./multistream -n ^ -c <N> -g 0     # same but GPU-Direct into GPU0 (hard-aborts if peermem/IOMMU wrong)
+```
+`-n ^` groups all cameras regardless of IP (quick test). `f:21/21 d:0 m:0` = received/expected, 0 dropped, 0 missed.
+
 ## ⚠ orange requires PTP running to RECORD
 
 orange reads `PtpOffset` from the camera every frame (it feeds the per-frame metadata

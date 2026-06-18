@@ -12,6 +12,23 @@ so we can stop cloning Linux images with Clonezilla.
     hardware steps a script can't do (Resizable BAR, Above-4G, Secure Boot, NIC/Rivermax).
   - [`install/config.env`](install/config.env) — pinned versions + artifact paths (single source of truth).
 
+## Machine-specific field notes — **read these first for a real build**
+
+The pinned `install/` scripts + `config.env` target the 22.04 / driver-535 / CUDA-12.2 **reference
+machine** (`CLAUDE.md`). For a modern **Ubuntu 24.04** box, start with the notes that match your GPU —
+they capture the exact working stack and every gotcha we hit:
+
+- [`ADA_2404_NOTES.md`](ADA_2404_NOTES.md) — **24.04 + a modern pre-installed driver** (RTX 4000 Ada /
+  driver 595 / CUDA 13.1). The easiest, mostly-headless path. Start here for most new machines.
+- [`BLACKWELL_2404_NOTES.md`](BLACKWELL_2404_NOTES.md) — 24.04 + Blackwell GPU (driver 590 / CUDA 13.1).
+- [`RED_2404_NOTES.md`](RED_2404_NOTES.md) — building `red` on 24.04 / CUDA 13.
+
+**Top lessons (24.04):** the precompiled `nvidia-peermem` is a no-op stub → rebuild via DKMS *after*
+DOCA (`install/gpu-direct/fix_nvidia_peermem_dkms.sh`); driver 590 is gone from apt (transitional →
+595, don't downgrade); validate the whole capture stack **headless** with `evttools` + `multistream -g`
+before touching the GUI; cameras can keep their IPs (read-then-match the host ports). Details in the
+notes above and `install/{gpu-direct,network}/README.md`.
+
 The scripts consume an offline artifact payload (NVIDIA driver/CUDA, DOCA-OFED, Rivermax + license,
 Emergent eSDK, prebuilt CUDA FFmpeg, TensorRT/cuDNN, app source) that travels on a USB drive — kept
 **outside** this repo because it is ~13 GB of binaries and a node-locked license. See the payload's

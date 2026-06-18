@@ -5,12 +5,12 @@
 # Needs root (ptp4l programs the NIC PTP hardware clocks). Ctrl-C to stop.
 #
 # Both ConnectX-7 (mlx5_core) quad-port camera NICs on this machine:
-#   enp33s0f0..3  (card 1, PCI 21:00.x)   enp241s0f0..3  (card 2, PCI f1:00.x)
-# The Intel enp209 (i40e) is NOT a camera NIC and is excluded.
+#   enp9s0f0..3  (card 1, PCI 09:00.x)   enp225s0f0..3  (card 2, PCI e1:00.x)
+# The Intel eno1/eno2 (i40e) are NOT camera NICs and are excluded.
 # Ports without a camera/link will report FAULTY in the log — harmless; ptp4l keeps
 # serving the active ports.
 
 sudo ptp4l \
-  -i enp33s0f0np0  -i enp33s0f1np1  -i enp33s0f2np2  -i enp33s0f3np3 \
-  -i enp241s0f0np0 -i enp241s0f1np1 -i enp241s0f2np2 -i enp241s0f3np3 \
+  -i enp9s0f0np0   -i enp9s0f1np1   -i enp9s0f2np2   -i enp9s0f3np3 \
+  -i enp225s0f0np0 -i enp225s0f1np1 -i enp225s0f2np2 -i enp225s0f3np3 \
   -f /etc/ptp4l.conf
