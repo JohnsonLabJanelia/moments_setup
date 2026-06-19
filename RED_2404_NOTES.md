@@ -106,6 +106,49 @@ DISPLAY= ./release/test_annotation                  # 673 passed, 0 failed
 DISPLAY= ./release/test_gui                          # 178 passed, 0 failed
 ```
 
+### Install a launcher on PATH — **don't skip this**
+
+⚠ **Ubuntu already ships a `/usr/bin/red`** — a stock wrapper that runs `ed --restricted`
+(the restricted line editor). If you just type `red` without installing our launcher, you
+get that editor, which sits **silently waiting for input** and looks like a hung terminal.
+(To escape it: type `q`<Enter>, or Ctrl-C.)
+
+Use red's own installer to put our launcher on PATH (idempotent; no sudo, installs to `~/.local`):
+
+```bash
+cd ~/src/red && ./install.sh
+# -> ~/.local/bin/red  (wrapper: cd into appdir, exec the real binary so it finds fonts/)
+# -> ~/.local/opt/red/ (binary + fonts/ + icon).  RPATH is baked, so libs resolve standalone.
+```
+
+Then make sure **`~/.local/bin` comes before `/usr/bin`** in PATH (it is by default on this box),
+or the stock editor keeps winning. Two gotchas after installing:
+
+- **Same shell still runs the old one?** bash caches command paths — run `hash -r` (or open a
+  new terminal). Confirm with `which red` → `/home/rob/.local/bin/red`.
+- The repo's `run.sh` (`./release/red`) also works for a quick test, but only from `~/src/red`;
+  the installed launcher is the one to use day-to-day (works from any directory).
+
+### Fonts: red finds them relative to the **binary**, not the CWD
+
+red locates its fonts from `/proc/self/exe` → it searches `<exe_dir>/../fonts` (dev layout) and
+`<exe_dir>/../share/red/fonts` (prefix layout). **CWD is irrelevant.** Consequences:
+
+- **Don't just copy the bare binary somewhere and run it.** e.g. a loose `~/red_run/red` searches
+  `~/red_run/../fonts` = `~/fonts`, finds nothing, and falls back to ImGui's built-in font — the
+  ForkAwesome **toolbar icons go missing / boxes**. The binary must keep a sibling `fonts/` at
+  `<exe_dir>/../fonts`. The dev build satisfies this naturally (`release/red` → `release/../fonts`
+  = `~/src/red/fonts`).
+- **`install.sh` had this exact bug** (fixed 2026-06-19): it put the binary at `opt/red/red` and
+  fonts at `opt/red/fonts`, so the binary searched `opt/red/../fonts` = `opt/fonts` (one level too
+  high) and the fonts vanished. Fix: install the binary one level down at **`opt/red/bin/red`** so
+  `../fonts` resolves to `opt/red/fonts`. If you have an old install, just re-run `./install.sh`
+  (and `rm ~/.local/opt/red/red` to drop the stale top-level binary). Symptom of the bug: red opens
+  but icons are missing — check stderr for `[RED] Could not find fonts directory`.
+
+red needs no PTP / cameras / network — it's offline labeling — so the launcher + fonts are all
+there is to it.
+
 ---
 
 ## 4. Phase B (option A) — JARVIS on an A16 via TensorRT 8.6 — PLAN, not yet done
@@ -246,3 +289,8 @@ TRT 10 won't build on the **22.04 reference box** (it has TRT 8.6). Two ways to 
   TRT 10, preferred). Either way, fix the JARVIS device-selection hardcodes.
 - **Verify the `xp` `d9d2a09` fixes still build on the 22.04 reference box** — they're
   written to be backward-compatible but have only been built on 24.04 so far.
+- **Launcher + fonts (2026-06-19).** Stock Ubuntu `/usr/bin/red` (= `ed --restricted`) shadows the
+  app until `./install.sh` puts our launcher on `~/.local/bin` — typing `red` first looks like a
+  hung terminal but is just the restricted editor (`q`<Enter> to quit). Separately, fonts resolve
+  from the binary's own dir (`<exe_dir>/../fonts`), not CWD; `install.sh` was fixed to install the
+  binary at `opt/red/bin/red` so `../fonts` finds them. See §3 "Install a launcher" + "Fonts".
