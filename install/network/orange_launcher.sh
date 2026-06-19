@@ -67,7 +67,7 @@ cleanup() {
     [[ "$STARTED_PTP4L"  == 1 ]] && { sudo pkill -x ptp4l   2>/dev/null || true; }
     return 0
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT INT TERM HUP
 
 sudo -v   # prompt for the password once; cache it so backgrounded sudos don't re-prompt
 
@@ -127,4 +127,18 @@ set +e
 sudo -E "$ORANGE_BIN" "$@" 2>&1 | tee "$LOGDIR/orange.log"
 rc=${PIPESTATUS[0]}
 set -e
+
+# When launched from the desktop icon (which sets ORANGE_HOLD=1), the terminal
+# is a throwaway gnome-terminal that auto-closes when this script exits — taking
+# orange's shutdown printouts with it. Hold it open until a keypress so they stay
+# visible. Plain CLI `orange` (ORANGE_HOLD unset) returns to your shell as before;
+# either way the full output is saved to $LOGDIR/orange.log.
+if [[ "${ORANGE_HOLD:-0}" == 1 && -t 0 ]]; then
+    cleanup                              # stop our PTP daemons now, before we wait
+    STARTED_PTP4L=0; STARTED_PHC2SYS=0   # make the EXIT-trap cleanup a no-op
+    echo
+    echo "[orange] exited (code $rc). Full output saved to: $LOGDIR/orange.log"
+    read -rsn1 -p "[orange] Press any key to close this terminal..."
+    echo
+fi
 exit "$rc"   # EXIT trap runs cleanup() regardless of how orange ended

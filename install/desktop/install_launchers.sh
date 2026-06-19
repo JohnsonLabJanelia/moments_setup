@@ -43,6 +43,9 @@ echo "red launcher   : $RED_EXEC"
 [ -e "${RED_EXEC%% *}" ]    || echo "  WARN: red launcher not found yet (run red's install.sh)"
 
 # --- orange.desktop (opens a terminal: shows PTP status, can prompt for sudo) ---
+# ORANGE_HOLD=1 tells the launcher to keep this (throwaway) terminal open after
+# orange exits, so its shutdown printouts stay visible instead of vanishing when
+# gnome-terminal auto-closes. (Plain CLI `orange` is unaffected.)
 cat > "$APPDIR/orange.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -50,7 +53,7 @@ Version=1.1
 Name=Orange
 GenericName=Multi-Camera Recorder
 Comment=Start PTP and launch the orange multi-camera recorder
-Exec=$ORANGE_EXEC
+Exec=env ORANGE_HOLD=1 $ORANGE_EXEC
 TryExec=${ORANGE_EXEC%% *}
 Icon=$ICONDIR/orange_icon.png
 Terminal=true
