@@ -42,6 +42,18 @@ export ARTIFACTS_DIR=/media/$USER/moments_artifacts
 | 60 | `60_tensorrt_cudnn.sh` | TensorRT 8.6.1.6 → `~/nvidia`, cuDNN 8.9 → `/usr/local/cuda` | — |
 | 70 | `70_red.sh` | apt deps (Eigen/Ceres/turbojpeg/…), extract+build `red` | — |
 
+## Optional: desktop launchers
+
+Once both apps run, install GNOME/desktop launchers (app-grid entries + icons, with
+a `--pin` option for the dash) so users don't have to launch from a terminal:
+
+```bash
+cd desktop && ./install_launchers.sh --pin    # as your normal user, not sudo
+```
+
+See [`desktop/README.md`](desktop/README.md). orange opens in a terminal (it starts
+PTP + runs under sudo); red launches its GUI directly.
+
 ## How resume works
 
 Each step writes a marker to `~/.moments-setup/state/<step>.done` when it finishes
