@@ -20,7 +20,14 @@ with orange's stack.
   playback, ArUco calibration + bundle adjustment, triangulation, and the v2 annotation/CSV
   layer. Fixes pushed to `red` **`origin/xp` @ `d9d2a09`** (backward-compatible with the
   22.04 reference box).
-- **Phase B — ML inference (JARVIS pose + SAM): NOT YET DONE.** Two options:
+> **Update (2026-07-10):** Phase B **option A is now DONE & verified** — but on the **A6000 /
+> 22.04 / CUDA-12.2 reference box**, not this Blackwell one. See
+> [`RED_A6000_2204_TENSORRT_NOTES.md`](RED_A6000_2204_TENSORRT_NOTES.md) for the full JARVIS
+> `.pth`→ONNX→TensorRT-8.6 runbook (export env, engine shapes, the required
+> `RED_HAS_ONNXRUNTIME`→`RED_HAS_TENSORRT_HN` gate patch, and wiring into a project). It uses
+> **`moments-behavior/red` `xp`** (a different repo from the `JohnsonLabJanelia/red` assumed here).
+
+- **Phase B — ML inference (JARVIS pose + SAM): NOT YET DONE on *this* (Blackwell) box.** Two options:
   - **§4 (option A):** JARVIS on an **A16 (sm_86)** via the existing **TensorRT 8.6** —
     conservative, matches the 22.04 reference box; needs a bundled CUDA-12 runtime.
   - **§5 (option B, PREFERRED):** JARVIS on the **Blackwell GPU (sm_120)** via **TensorRT

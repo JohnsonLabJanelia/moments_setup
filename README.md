@@ -22,6 +22,10 @@ they capture the exact working stack and every gotcha we hit:
   driver 595 / CUDA 13.1). The easiest, mostly-headless path. Start here for most new machines.
 - [`BLACKWELL_2404_NOTES.md`](BLACKWELL_2404_NOTES.md) — 24.04 + Blackwell GPU (driver 590 / CUDA 13.1).
 - [`RED_2404_NOTES.md`](RED_2404_NOTES.md) — building `red` on 24.04 / CUDA 13.
+- [`RED_A6000_2204_TENSORRT_NOTES.md`](RED_A6000_2204_TENSORRT_NOTES.md) — **`red` + JARVIS
+  TensorRT on the A6000 / 22.04 / CUDA-12.2 reference box** (driver 595): annotation projects +
+  the full JARVIS `.pth`→ONNX→TensorRT-8.6 engine runbook and Predict-tool wiring. Uses
+  `moments-behavior/red` `xp`.
 
 **Top lessons (24.04):** the precompiled `nvidia-peermem` is a no-op stub → rebuild via DKMS *after*
 DOCA (`install/gpu-direct/fix_nvidia_peermem_dkms.sh`); driver 590 is gone from apt (transitional →
