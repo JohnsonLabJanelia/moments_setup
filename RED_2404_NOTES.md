@@ -26,6 +26,12 @@ with orange's stack.
 > `.pth`→ONNX→TensorRT-8.6 runbook (export env, engine shapes, the required
 > `RED_HAS_ONNXRUNTIME`→`RED_HAS_TENSORRT_HN` gate patch, and wiring into a project). It uses
 > **`moments-behavior/red` `xp`** (a different repo from the `JohnsonLabJanelia/red` assumed here).
+>
+> **Update (2026-07-10, later):** Phase B **option B (§5, TensorRT 10) is now DONE & verified**
+> too — on the **Ada box `flyrig`** (24.04 / CUDA-13.1), not the Blackwell one. TRT 10 came from
+> the CUDA **apt** repo (no CUDA-12 bundling), and red needed **no runtime-API change** — just a
+> CMake dual-layout TRT detection + a device-pinning fix, committed on `moments-behavior/red`
+> branch **`trt10-cuda13`**. Full recipe: [`RED_FLYRIG_2404_TRT10_NOTES.md`](RED_FLYRIG_2404_TRT10_NOTES.md).
 
 - **Phase B — ML inference (JARVIS pose + SAM): NOT YET DONE on *this* (Blackwell) box.** Two options:
   - **§4 (option A):** JARVIS on an **A16 (sm_86)** via the existing **TensorRT 8.6** —
@@ -218,9 +224,17 @@ CUDA-12 runtime. Stage an ORT release that supports CUDA 12 into `lib/onnxruntim
 ## 5. Phase B (option B, PREFERRED) — JARVIS on the Blackwell GPU via TensorRT 10
 
 This is the path Rob wants: run JARVIS inference on the **RTX PRO 4000 Blackwell**
-(sm_120, `nvidia-smi` idx 8) instead of an A16 die. Researched 2026-06-10; **not yet
-attempted**. It is feasible and, on this box, **architecturally cleaner** than §4 — but it
-requires moving off TensorRT 8.6, so do it on a **dedicated branch**.
+(sm_120, `nvidia-smi` idx 8) instead of an A16 die. Researched 2026-06-10. It is feasible and,
+on this box, **architecturally cleaner** than §4 — but it requires moving off TensorRT 8.6, so
+do it on a **dedicated branch**.
+
+> **DONE (2026-07-10) — on the Ada box `flyrig`, not Blackwell.** This TRT-10 path is now
+> executed and verified end-to-end (JARVIS running on the **RTX 4000 Ada sm_89**, TRT 10 from
+> apt, engines recompiled, `[HybridNet] load SUCCEEDED`). The predictions below (§5b–5d) held:
+> **no runtime-API change** was needed — only CMake TRT auto-detection + a device-pinning fix
+> (committed on `moments-behavior/red` `trt10-cuda13`), and TRT 10 built `hybrid3d` with **no
+> InstanceNorm plugin**. Step-by-step: [`RED_FLYRIG_2404_TRT10_NOTES.md`](RED_FLYRIG_2404_TRT10_NOTES.md).
+> The Blackwell (sm_120) variant is still untested but should follow the same recipe.
 
 ### 5a. The one hard requirement: TensorRT 10
 TensorRT **8.6 cannot target Blackwell** — it tops out at sm_90 (Hopper). Running JARVIS on

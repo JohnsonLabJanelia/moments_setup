@@ -26,6 +26,11 @@ they capture the exact working stack and every gotcha we hit:
   TensorRT on the A6000 / 22.04 / CUDA-12.2 reference box** (driver 595): annotation projects +
   the full JARVIS `.pth`→ONNX→TensorRT-8.6 engine runbook and Predict-tool wiring. Uses
   `moments-behavior/red` `xp`.
+- [`RED_FLYRIG_2404_TRT10_NOTES.md`](RED_FLYRIG_2404_TRT10_NOTES.md) — **`red` + JARVIS
+  TensorRT-10 on flyrig (Ada / 24.04 / CUDA-13)**: the CUDA-13-native path (system/apt TRT 10,
+  no CUDA-12 bundling) — apt install, the red `trt10-cuda13` build change, engine recompile,
+  and keeping the install off the live `orange` capture. This is `RED_2404_NOTES.md` §5's
+  preferred path, now done.
 
 **Top lessons (24.04):** the precompiled `nvidia-peermem` is a no-op stub → rebuild via DKMS *after*
 DOCA (`install/gpu-direct/fix_nvidia_peermem_dkms.sh`); driver 590 is gone from apt (transitional →
