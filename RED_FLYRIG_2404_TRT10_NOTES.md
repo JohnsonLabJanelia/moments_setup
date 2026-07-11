@@ -137,3 +137,113 @@ The tarball path is untouched, so the 22.04 reference box keeps using its
 `$HOME/nvidia/TensorRT-8.6.1.6` with no change. The Blackwell box (sm_120) should follow this
 same recipe (TRT-10 apt + recompile engines targeting sm_120) — untested there but expected to
 work identically given the shared runtime API.
+
+## 8. Adding another JARVIS model from `.pth` (export → compile → wire)
+
+§2–6 assume you already have the ONNX (Fly50 came pre-exported). When you only have training
+output (`config.yaml` + `models/{CenterDetect,KeypointDetect,HybridNet}/Run_*/…_final.pth`) you
+must first **export ONNX** (needs GPU torch — `trtexec` can't read `.pth`). Worked example:
+`fly44_l_V4` (44-kp "5-leg" model, `/mnt/johnsonlab/Elliott_Abe/fly44_l_V4/models`).
+
+### 8a. One-time: build the export env on flyrig
+
+No conda ships on flyrig. Install miniconda user-space (no sudo), then create the env. **The new
+conda gates the anaconda `defaults` channels behind a ToS accept — use `--override-channels -c
+conda-forge` to avoid it entirely.** `torch` cu121 wheels run on driver 595 (backward compat).
+Pin all GPU work to the Ada (§1).
+
+```bash
+curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/mc.sh
+bash /tmp/mc.sh -b -p $HOME/miniconda3
+CONDA=$HOME/miniconda3/bin/conda; ENV=$HOME/miniconda3/envs/red_trt_export
+$CONDA create -n red_trt_export --override-channels -c conda-forge python=3.10 libstdcxx-ng -y
+$ENV/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+$ENV/bin/pip install onnx onnxruntime-gpu yacs numpy scipy opencv-python-headless matplotlib
+# jarvis package (imported via PYTHONPATH, not installed):
+#   /mnt/johnsonlab/clusterfly/JARVIS-HybridNet   (has jarvis/efficienttrack/model.py)
+# verify: PYTHONPATH=$JARVIS $ENV/bin/python -c "import torch,onnx,yacs,cv2; \
+#   from jarvis.efficienttrack.model import EfficientTrackBackbone; print(torch.cuda.is_available())"
+```
+
+### 8b. Export ONNX — `--world_scale 0.1` for the telecentric fly
+
+```bash
+ENV=$HOME/miniconda3/envs/red_trt_export; JARVIS=/mnt/johnsonlab/clusterfly/JARVIS-HybridNet
+M=<model>/models; OUT=<project>/jarvis_<name>
+ADA=$(nvidia-smi --query-gpu=index,name --format=csv,noheader | awk -F', ' '/RTX 4000 Ada/{print $1; exit}')
+PYTHONPATH=$JARVIS LD_LIBRARY_PATH=$ENV/lib CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=$ADA \
+$ENV/bin/python ~/src/red/scripts/export_jarvis_onnx.py \
+  --config <model>/config.yaml \
+  --center-pth $M/CenterDetect/Run_*/EfficientTrack-medium_final.pth \
+  --keypoint-pth $M/KeypointDetect/Run_*/EfficientTrack-medium_final.pth \
+  --hybridnet-pth $M/HybridNet/Run_*/HybridNet-medium_final.pth \
+  --output-dir $OUT --jarvis-src $JARVIS --world_scale 0.1
+```
+The script reads `NUM_JOINTS`/`NUM_CAMERAS`/`ROI`/`GRID` from the config and writes 4 `.onnx` +
+`manifest.json` + `training_config.yaml`. The 2D stages print **"FAIL"** (benign — strict 1e-2
+tolerance on raw heatmaps); what matters is `hybrid3d`'s `points3D` diff (~0.005 mm with
+`--world_scale 0.1`; ~10× larger without it). fly44 → 44 joints, roi 52→5.2 mm, grid 1→0.1 mm.
+
+### 8c. Compile — manifest-driven (works for any joint/camera count)
+
+`scripts/compile_tensorrt_engines.sh` hardcodes wrong shapes; use this instead. It reads
+joints/cameras/sizes from `manifest.json`, so the same script serves fly44 (44), Fly50 (50), etc.
+Drop it in the model folder as `compile_engines_trt10.sh` and run it:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail; cd "$(dirname "$0")"
+read J N CS BB < <(python3 -c 'import json;m=json.load(open("manifest.json"))["training_config_summary"];print(m["num_joints"],m["num_cameras"],m["center_image_size"],m["keypoint_bbox_size"])')
+PAD=$(( BB/2 + 2 ))                                   # hybrid3d padded_hw
+ADA=$(nvidia-smi --query-gpu=index,name --format=csv,noheader | awk -F', ' '/RTX 4000 Ada/{print $1; exit}')
+export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=$ADA   # keep off the A16 capture dies
+T=$(command -v trtexec); WS="--memPoolSize=workspace:4096"      # TRT-10: not --workspace
+"$T" --onnx=center_detect.onnx --saveEngine=center_detect.engine $WS \
+  --minShapes=input:${N}x3x${CS}x${CS} --optShapes=input:${N}x3x${CS}x${CS} --maxShapes=input:${N}x3x${CS}x${CS}
+"$T" --onnx=hybridnet_efftrack.onnx --saveEngine=hybridnet_efftrack.engine $WS \
+  --minShapes=input:${N}x3x${BB}x${BB} --optShapes=input:${N}x3x${BB}x${BB} --maxShapes=input:${N}x3x${BB}x${BB}
+SH="heatmaps_padded:1x${N}x${J}x${PAD}x${PAD},centerHM:1x${N}x2,center3D:1x3,cameraMatrices:1x${N}x4x3"
+"$T" --onnx=hybrid3d.onnx --saveEngine=hybrid3d.engine $WS --minShapes=$SH --optShapes=$SH --maxShapes=$SH
+for e in center_detect hybridnet_efftrack hybrid3d; do "$T" --loadEngine=$e.engine 2>&1 | grep -oE 'PASSED|FAILED'; done
+```
+TRT 10 builds `hybrid3d` with **no `InstanceNormalization_TRT` plugin** (export decomposes it).
+
+### 8d. Wire it in — **skeleton coupling decides one project vs a new one**
+
+red writes predictions **positionally** (model joint `j` → project-skeleton slot `j`) and the
+skeleton is fixed **per project**. So:
+
+- **Same skeleton as an existing project** (e.g. another training run of the same 50-kp layout) →
+  just add a second entry to that project's `jarvis_models[]` and it appears in the Predict
+  dropdown. `active_jarvis_model` picks the default.
+- **Different skeleton** (fly44's 44-kp order diverges from Fly50 at index 10) → a shared dropdown
+  would **misalign** joints. Make a **separate project** with a matching skeleton. red has only a
+  `Fly50` preset, so generate the skeleton JSON from the model manifest and load it via
+  `load_skeleton_from_json`:
+  ```bash
+  python3 - <<'PY'
+  import json
+  m=json.load(open("<model>/manifest.json"))["training_config_summary"]
+  names=m["keypoint_names"]; idx={n:i for i,n in enumerate(names)}
+  sk={"name":"Fly44","num_nodes":len(names),"num_edges":len(m["skeleton"]),
+      "edges":[[idx[a],idx[b]] for a,b in m["skeleton"]],"node_names":names}
+  json.dump(sk, open("<project>/fly44_skeleton.json","w"), indent=2)
+  PY
+  ```
+  Then in the `.redproj`: `"load_skeleton_from_json": true`, `"skeleton_file": ".../fly44_skeleton.json"`,
+  and `jarvis_models[]` → the `jarvis_<name>` folder with `num_joints` set (44). "Choose the model"
+  = open the project whose skeleton matches it. Videos can be referenced in place (absolute
+  `media_folder`); a local-NVMe path like `/mnt/localflydrive3/...` needs no copy.
+
+### 8e. Launcher (per project, Ada-pinned)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+ADA=$(nvidia-smi --query-gpu=index,name --format=csv,noheader | awk -F', ' '/RTX 4000 Ada/{print $1; exit}')
+export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES="${ADA:?no RTX 4000 Ada}"
+exec red <project>/<project>.redproj
+```
+Working flyrig examples: `/home/rob/red_data/fly_posts39a_0708/` (Fly50_V5, 50-kp) and
+`/home/rob/red_data/5legtest/` (fly44_l_V4, 44-kp, generated Fly44 skeleton, videos referenced
+in place). Both verified: `[HybridNet] load SUCCEEDED` with the right joint count.
