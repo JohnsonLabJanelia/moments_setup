@@ -31,6 +31,12 @@ they capture the exact working stack and every gotcha we hit:
   no CUDA-12 bundling) — apt install, the red `trt10-cuda13` build change, engine recompile,
   and keeping the install off the live `orange` capture. This is `RED_2404_NOTES.md` §5's
   preferred path, now done.
+- [`INCUBATOR_2404_NOTES.md`](INCUBATOR_2404_NOTES.md) — **single-GPU desktop (RTX PRO 6000
+  Blackwell / 24.04 / kernel 7.0 / Intel i7)**, July 2026: the first fully-online build (no
+  USB payload — FFmpeg n4.4.5 rebuilt from source), eSDK 4.07.02 + DOCA 3.4 on kernel 7.0,
+  ConnectX-5 + 25G-LR fiber link bring-up (forced speed, no autoneg), a 65 MP **mono**
+  camera (HB-65000GM) config, GPU-Direct into the display GPU, and `intel_iommu=off` on an
+  Intel box. Setup driven end-to-end by Claude Fable 5.
 
 **Top lessons (24.04):** the precompiled `nvidia-peermem` is a no-op stub → rebuild via DKMS *after*
 DOCA (`install/gpu-direct/fix_nvidia_peermem_dkms.sh`); driver 590 is gone from apt (transitional →

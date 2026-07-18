@@ -11,6 +11,5 @@
 # serving the active ports.
 
 sudo ptp4l \
-  -i enp9s0f0np0   -i enp9s0f1np1   -i enp9s0f2np2   -i enp9s0f3np3 \
-  -i enp225s0f0np0 -i enp225s0f1np1 -i enp225s0f2np2 -i enp225s0f3np3 \
+  -i enp2s0f0np0 \
   -f /etc/ptp4l.conf
