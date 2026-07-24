@@ -13,10 +13,13 @@ gotchas — see §6/§8).
 > keep-the-preinstalled-driver path), [`BLACKWELL_2404_NOTES.md`](BLACKWELL_2404_NOTES.md),
 > [`RED_2404_NOTES.md`](RED_2404_NOTES.md).
 
-**Status at end of session:** headless capture validated host-staged **and GPU-Direct**
-(0 drops both ways), **orange live streaming with GPU-Direct confirmed in the GUI**;
-red built, 673/673 + 178/178 headless tests pass, launcher + desktop icons installed.
-Remaining: a real orange **record** → open the `.mp4` in **red** (next session).
+**Status: setup complete (2026-07-24).** Headless capture validated host-staged **and
+GPU-Direct** (0 drops both ways); orange live streaming **and recording** with GPU-Direct
+confirmed in the GUI (16 s / 480 frames @ 8192×7000 HEVC, 0 drops, PTP offsets ~−400 ns);
+the recording **opens and scrubs in red**. red: 673/673 + 178/178 headless tests pass,
+launcher + desktop icons installed. The NOPASSWD sudoers drop-in has been removed.
+One post-setup quirk surfaced on the first camera power-on after a cold host boot —
+RS-FEC does not persist (§5).
 
 ---
 
@@ -100,8 +103,8 @@ machine's `$HOME`, so the flyrig "sed-fix the baked pkg-config prefix" step disa
 
 Camera link stayed **NO-CARRIER** ("cable unplugged" in the Network panel) with the module
 clearly detected (`ethtool -m` shows 25GBase-LR, LC fiber). **25G LR optics don't
-autonegotiate** — force the speed and the link comes up instantly; RS-FEC is required and
-enabled itself once forced:
+autonegotiate** — force the speed (RS-FEC is also required; see the persistence quirk
+below) and the link comes up instantly:
 
 ```bash
 ethtool -s enp2s0f0np0 autoneg off speed 25000 duplex full   # link up in ~5 s
@@ -111,6 +114,16 @@ nmcli con add type ethernet ifname enp2s0f0np0 con-name camera0 \
   802-3-ethernet.mtu 9000 802-3-ethernet.auto-negotiate no \
   802-3-ethernet.speed 25000 802-3-ethernet.duplex full
 ```
+
+**RS-FEC does not persist — the link is dead after a reboot (found 2026-07-24).** The
+nmcli profile persists autoneg/speed/duplex but **NetworkManager has no FEC property**, so
+after a host reboot the port sits in forced mode with `Active FEC encoding: None` and the
+25G-LR link never trains (`ethtool` says "No partner detected during force mode"). Worse,
+the chicken-and-egg: with no carrier the `camera0` profile never activates, so nothing
+re-applies anything. Fix: a boot-time systemd oneshot that forces speed **and** RS-FEC —
+[`install/network/camera-nic-fec.service`](install/network/camera-nic-fec.service)
+(`cp` to `/etc/systemd/system/`, `systemctl enable --now camera-nic-fec`; edit the
+interface name per box). With FEC forced back to `rs` the link came up instantly.
 
 No NIC firmware update was needed (fw 16.35.3502 works). Other quirks:
 
@@ -187,7 +200,9 @@ buffering) to get real output.
 Exactly per `RED_2404_NOTES.md` §3 (gtest+gmock to `/usr/local`, `implot3d` submodule,
 arch `120`): builds clean, `test_annotation` 673/673 + `test_gui` 178/178, RPATH/ldd clean,
 `./install.sh` launcher + `install/desktop/install_launchers.sh --pin` desktop icons done.
-GUI playback of an orange recording is the one thing **not yet exercised** on this box.
+GUI playback verified 2026-07-24: the orange GPU-Direct recording (8192×7000 HEVC)
+opens and scrubs cleanly in red (NVDEC on the Blackwell) — the full
+camera → orange → red loop works on this box.
 
 ## 10. Gotchas, one line each
 
@@ -195,7 +210,8 @@ GUI playback of an orange recording is the one thing **not yet exercised** on th
 - Wedged half-installed `rivermax` blocks all apt → `dpkg --remove rivermax`, fix DOCA, reinstall.
 - eSDK 4.07.02 installer downloads DOCA 3.4.0 itself; still don't pass `-y`.
 - Kernel 7.0.0-28: DOCA 3.4 + nvidia-595 DKMS both build — kernel-too-new fear didn't materialize (again).
-- 25G-LR optics: force `autoneg off speed 25000` (+RS-FEC) or the link never comes up; persist via nmcli; **not** a firmware problem.
+- 25G-LR optics: force `autoneg off speed 25000` **+ RS-FEC** or the link never comes up; **not** a firmware problem.
+- nmcli persists speed/duplex but **not FEC** → link dead after reboot; install `install/network/camera-nic-fec.service` (boot-time ethtool oneshot).
 - `evttools` broadcast discovery wants an IPv4 on the port first.
 - Camera discovered-then-silent (no ARP, link up) = hung camera → power-cycle it.
 - `fix_nvidia_peermem_dkms.sh` can leave orphaned stub `.ko`s shadowing DKMS → `rm -rf` the `kernel/nvidia-<NNN>-open` dir, `dpkg --configure -a`.
@@ -204,4 +220,4 @@ GUI playback of an orange recording is the one thing **not yet exercised** on th
 - HEVC NVENC width cap 8192 < the 65 MP sensor's 9344 → crop via `width` + centered `offsetx`.
 - `multistream` under `timeout`/pipes: `stdbuf -oL` + `timeout -s INT` or you get no output.
 - FFmpeg n4.4.5 rebuilt from source is a full substitute for the USB prebuilt (mux/demux only).
-- A NOPASSWD sudoers drop-in (`/etc/sudoers.d/99-moments-setup`) was added for the unattended install — **remove it when setup is finished**.
+- A NOPASSWD sudoers drop-in (`/etc/sudoers.d/99-moments-setup`) was added for the unattended install — removed 2026-07-24 when setup finished. If you use this trick, remember to remove it.

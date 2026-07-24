@@ -1,0 +1,26 @@
+# camera-nic-fec.service — force 25G + RS-FEC on the camera NIC port at boot.
+#
+# Why: the 25GBase-LR optics can't autonegotiate, and while the NetworkManager
+# profile (camera0) persists autoneg-off/speed/duplex, NM has NO knob for FEC.
+# Without RS-FEC active the link never trains ("No partner detected during
+# force mode"), so the camera0 profile never activates — chicken-and-egg.
+# Seen on incubator (ConnectX-5 + HB-65000GM over 25G-LR), 2026-07-24.
+#
+# Install:
+#   sudo cp camera-nic-fec.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now camera-nic-fec
+# Edit the interface name below for the target machine.
+
+[Unit]
+Description=Force 25G + RS-FEC on camera NIC (25G-LR optics, no autoneg)
+After=network-pre.target sys-subsystem-net-devices-enp2s0f0np0.device
+Wants=sys-subsystem-net-devices-enp2s0f0np0.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethtool -s enp2s0f0np0 autoneg off speed 25000 duplex full
+ExecStart=/usr/sbin/ethtool --set-fec enp2s0f0np0 encoding rs
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
