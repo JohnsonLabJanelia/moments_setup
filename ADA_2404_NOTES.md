@@ -56,6 +56,36 @@ that keeps your driver version.
 - **gcc:** CUDA 13's `nvcc` accepts gcc-13 (24.04 default) — the gcc-12 hack from the reference path
   is **not** needed.
 
+### ⚠ Kernel is pinned to 6.17 — do NOT let the HWE 7.0 kernel in (July 2026 incident)
+
+On 2026-07-18 unattended-upgrades pulled HWE kernel **7.0.0-28** onto flyrig. The OFED 26.01 DKMS
+modules (`mlnx-ofed-kernel`, `iser`, `isert`, `srp`) **fail to build against the 7.0 series**, which
+aborted the kernel's postinst — no initramfs was ever generated, and the next reboot kernel-panicked
+(`VFS: Unable to mount root fs on unknown-block(0,0)`). Even if 7.0 booted, no OFED modules means no
+camera NICs / Rivermax / GPU-Direct → orange dead.
+
+Recovery (done 2026-07-27): boot 6.17.0-35 from the GRUB "Advanced options" menu, then:
+
+- Purge the 7.0 packages **and** the `linux-{generic,image-generic,headers-generic}-hwe-24.04`
+  metapackages. (The 6.17 metapackage versions are gone from the archive, so hold-at-6.17 isn't
+  possible — no metapackage is the pin: unattended-upgrades has nothing to roll forward.)
+- `apt-mark manual` the `linux-{image,headers,modules,modules-extra}-6.17.0-35-generic` packages so
+  autoremove can't take them.
+- **Autoremove trap:** purging the metapackage orphans `nvidia-firmware-595-*` (GSP firmware — the
+  driver dies without it), `amd64-microcode`, `intel-microcode`, `thermald`. `apt-mark manual` all of
+  them before ever running `apt autoremove`.
+- `update-grub` picks up 6.17 as default and preserves `amd_iommu=off` (it's in `/etc/default/grub`).
+
+Consequence: **no kernel updates arrive at all**, including 6.17 security point-releases. To move
+kernels later: first confirm the whole DKMS stack (nvidia + OFED) builds on the target series
+(`dkms status` after a test build), then explicitly `apt install` the new image+headers.
+
+**The unpin path exists:** `incubator` runs kernel **7.0.0-28 fine on DOCA 3.4.0 / OFED 26.04**
+(see [`INCUBATOR_2404_NOTES.md`](INCUBATOR_2404_NOTES.md) §4) — the 7.0 breakage is specific to
+flyrig's older OFED 26.01. So the deliberate route off this pin is: upgrade flyrig to eSDK
+4.07.02 + DOCA 3.4 first (a planned maintenance window — it rebuilds the NIC stack), then the
+7.0 kernel becomes viable.
+
 ---
 
 ## 3. BIOS — verify, don't assume
@@ -272,3 +302,6 @@ similarly validate the labeling side without a display.
 - eSDK installer: no `-y`; `evt_mellanox_init.service` failing at install is expected (clears on reboot).
 - `red` needs `lib/implot3d` submodule + GoogleTest **with gmock** at `/usr/local`.
 - Validate everything headless with `evttools` + `multistream -g` before touching the GUI (§9).
+- **Kernel is pinned to 6.17** — HWE 7.0 breaks the OFED DKMS build and panics on boot (§2). HWE
+  metapackages are purged on purpose; never reinstall them, and `apt autoremove` only after checking
+  what it wants to take.
