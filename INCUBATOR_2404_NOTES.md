@@ -137,6 +137,15 @@ No NIC firmware update was needed (fw 16.35.3502 works). Other quirks:
   don't debug the host — power-cycle the camera.
 - Jumbo ICMP (`ping -M do -s 8972`) does **not** echo from this camera even though 9000-MTU
   GVSP streaming is flawless — don't use it as a health check.
+- **The SFP28 transceiver can wedge (stuck CDR) — re-seat it (found 2026-08-03).** Link
+  stayed DOWN ("No partner detected during force mode") with everything else provably fine:
+  RX optical power healthy (`ethtool -m` → −1 dBm, so camera + fiber good), forced
+  25G/RS-FEC config correct, and a full port bounce + re-apply did nothing. The FS
+  SFP28-25GLR-31 has a CDR/retimer ("Retimer or CDR implemented" in the EEPROM) that can
+  fail to lock and stay stuck; `ip link down/up` does **not** power-cycle the module, so
+  only physically re-seating the SFP in the NIC cage clears it — link trained 5 s after
+  replug. Diagnostic order that isolates this: `ethtool -m` RX power first (dark fiber vs
+  camera problem), then port bounce (software state), then re-seat (module).
 - PTP: `ptp_start.sh` edited to this box's single `-i enp2s0f0np0` (committed; per the
   launcher README this file is machine-specific — edit per box). `linuxptp` from apt;
   grandmaster + phc2sys verified. Single camera still needs it (PtpOffset reads).
@@ -214,6 +223,7 @@ camera → orange → red loop works on this box.
 - nmcli persists speed/duplex but **not FEC** → link dead after reboot; install `install/network/camera-nic-fec.service` (boot-time ethtool oneshot).
 - `evttools` broadcast discovery wants an IPv4 on the port first.
 - Camera discovered-then-silent (no ARP, link up) = hung camera → power-cycle it.
+- Link down but RX light good + config correct + bounce useless = wedged SFP28 CDR → physically re-seat the transceiver.
 - `fix_nvidia_peermem_dkms.sh` can leave orphaned stub `.ko`s shadowing DKMS → `rm -rf` the `kernel/nvidia-<NNN>-open` dir, `dpkg --configure -a`.
 - Intel box → `intel_iommu=off`, not `amd_iommu=off`.
 - Mono camera config still needs `color_temp`/`focus`/`iris` keys or orange crashes at JSON load.
