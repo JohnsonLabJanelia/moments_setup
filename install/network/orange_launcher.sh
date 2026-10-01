@@ -124,7 +124,10 @@ set +e
 # tee so you see output live AND it's captured for debugging. PIPESTATUS[0] is
 # orange's real exit code (tee's would always be 0). The log is written by tee
 # running as your user, so it's user-owned.
-sudo -E "$ORANGE_BIN" "$@" 2>&1 | tee "$LOGDIR/orange.log"
+# stdbuf -oL -eL: piped into tee, orange's printf output would otherwise be
+# fully buffered — log lines land out of order (e.g. "Close Camera" thousands of
+# lines late) and whatever is still buffered is lost if orange crashes.
+sudo -E stdbuf -oL -eL "$ORANGE_BIN" "$@" 2>&1 | tee "$LOGDIR/orange.log"
 rc=${PIPESTATUS[0]}
 set -e
 

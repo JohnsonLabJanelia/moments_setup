@@ -37,6 +37,12 @@ they capture the exact working stack and every gotcha we hit:
   ConnectX-5 + 25G-LR fiber link bring-up (forced speed, no autoneg), a 65 MP **mono**
   camera (HB-65000GM) config, GPU-Direct into the display GPU, and `intel_iommu=off` on an
   Intel box. Setup driven end-to-end by Claude Fable 5.
+- [`PUGET_2404_NOTES.md`](PUGET_2404_NOTES.md) — **Threadripper 9965WX + RTX PRO 4000
+  Blackwell + 4× HE-5000 10G mono cameras (24.04 / kernel 6.17)**, Sept–Oct 2026: eSDK
+  4.08.05 (no CUDA-12 shim needed), DOCA pre-installed to dodge the apt fights, peermem stub
+  on an already-DKMS driver, cameras that all ship with the same IP (one subnet per port,
+  `evttools -f … -o bp`), 4-cam 100 fps record on a single NVENC GPU, and the orange
+  close-window-while-streaming crash + fix.
 
 **Top lessons (24.04):** the precompiled `nvidia-peermem` is a no-op stub → rebuild via DKMS *after*
 DOCA (`install/gpu-direct/fix_nvidia_peermem_dkms.sh`); driver 590 is gone from apt (transitional →
