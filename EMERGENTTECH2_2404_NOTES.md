@@ -24,8 +24,8 @@ things are required, both verified by reverting them:** (1) NIC **`PCI_WR_ORDERI
 display GPU in the reference rig's slot pattern** (without it ~0.01 % residual drops remain).
 A third change tried along the way, the NIC rx buffer 156 KB → 1 MB, helped only in the old slot
 layout and is **not needed** now (rx buffer back at default). **Pending:** BIOS CBS page comparison
-with the 462 to explain why this box needs relaxed ordering at all; commit the orange `line_time`
-change upstream.
+with the 462 to explain why this box needs relaxed ordering at all; merge orange branch
+`rob_minimal_line_time` (`b6e4e3b`, the `line_time` key) into `rob_minimal`.
 
 ---
 
@@ -46,7 +46,7 @@ change upstream.
 | DOCA / OFED / Rivermax / mft | **3.4.0-085000** / 26.04-0.8.6 / **1.90.18** / 4.36.0-147 | 3.1.0 / 25.07 / 1.71.30 |
 | eSDK / eCapture | **4.08.05** (`eSDK_4_08_05_eCap_2_14_02_Ubuntu_24_04_6_17_0_x64.zip`) | 2.62.02 libs |
 | Cameras | 4× **HB-20000SBM** (4512×4512) + 4× **HB-16000SBM** (5328×3040), Mono8, 60 fps, one L2 switch that is the **PTP grandmaster** | same cameras |
-| orange / red | `rob_minimal` @ `34d0021` (+ `line_time`, §5) / `xp` @ `9654b3e`, both `-DCMAKE_CUDA_ARCHITECTURES=86;89`, built in `~/new_src/{orange,red}/release` | `ng-dev` |
+| orange / red | `rob_minimal` @ `34d0021` + branch `rob_minimal_line_time` `b6e4e3b` (`line_time`, §5) / `xp` @ `9654b3e`, both `-DCMAKE_CUDA_ARCHITECTURES=86;89`, built in `~/new_src/{orange,red}/release` | `ng-dev` |
 
 Slot layout **after the 2026-10-14 move** (this matters — §3.4): A16 #1 → bus 05–08 under root
 port `00:01.1` (DMI `PCIEx16(G5)_3`), A16 #2 → bus c5–c8 under `c0:01.1`, RTX 4000 Ada → bus 21
@@ -221,9 +221,9 @@ nvidia-smi dmon -s t -c 3    # ~1.25 GB/s rx per card-1 die, ~1.0 GB/s per card-
 - Presets: `~/orange_data/config/local/rob_minimal_8cam_60fps_gpuDirect/<serial>.json`
   (`gpu_direct: true`) and `rob_minimal_8cam_60fps_host/` (`false`), both 60 fps Mono8,
   `gop 1`, HEVC preset `p1` global, and **`"line_time": 1402`** (HB-20000) / **`2032`** (HB-16000).
-- **New config key `line_time`** (uncommitted in `~/new_src/orange`, `src/camera.{h,cpp}`,
-  `src/video_capture.cpp`): applied at camera open, clamped to the camera's min/max, logged as
-  `LineTime: <cur> (range min-max)`; `0`/absent = leave the camera's value. Also uncommitted:
+- **New config key `line_time`** (orange branch `rob_minimal_line_time`, commit `b6e4e3b`, pushed;
+  `src/camera.{h,cpp}`, `src/video_capture.cpp`): applied at camera open, clamped to the camera's min/max, logged as
+  `LineTime: <cur> (range min-max)`; `0`/absent = leave the camera's value. Same commit:
   preset folders sorted and the preset radio row wraps to the window width (`src/orange.cpp`).
 - Recording folder: `~/.config/orange/config.json` → `/mnt/data` (`/mnt/data/exp/unsorted/<ts>/`).
 - Launch: `cd ~/new_src/orange && sudo -E ./release/orange` (needs root for the NIC). Note
