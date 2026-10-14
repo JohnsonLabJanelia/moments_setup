@@ -1,0 +1,25 @@
+# camera-nic-rxbuf.service — give the camera traffic the NIC's whole receive buffer.
+#
+# EmergentTech2 (dual-port 100G ConnectX-6 Dx, 8 cameras, GPUDirect one A16 die per
+# camera): by default mlx5 assigns priority 0 only ~156 KB of the ~1 MB port receive
+# buffer. At 8 x 60 fps with PTP-aligned bursts that overflows a few times a minute
+# (single-frame drops on 2-3 cameras, rx_discards_phy + pause frames). With ~1 MB the
+# 3-minute soaks run clean. mlnx_qos settings do not survive a reboot or mlxfwreset,
+# hence this unit. Pairs with the NIC firmware setting PCI_WR_ORDERING=force_relax
+# (persistent in NVRAM) which fixes the multi-second GPUDirect stalls.
+#
+# Install:  sudo cp camera-nic-rxbuf.service /etc/systemd/system/ &&
+#           sudo systemctl daemon-reload && sudo systemctl enable --now camera-nic-rxbuf
+# Check:    sudo mlnx_qos -i enp241s0f0np0 | grep 'Receive buffer'
+[Unit]
+Description=Camera NIC: enlarge receive buffer on the 100G camera ports
+After=network-online.target evt_mellanox_init.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for i in enp241s0f0np0 enp241s0f1np1; do /usr/bin/mlnx_qos -i $i --buffer_size=0,1000000,0,0,0,0,0,0 >/dev/null; done'
+
+[Install]
+WantedBy=multi-user.target

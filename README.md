@@ -43,6 +43,13 @@ they capture the exact working stack and every gotcha we hit:
   on an already-DKMS driver, cameras that all ship with the same IP (one subnet per port,
   `evttools -f … -o bp`), 4-cam 100 fps record on a single NVENC GPU, and the orange
   close-window-while-streaming crash + fix.
+- [`EMERGENTTECH2_2404_NOTES.md`](EMERGENTTECH2_2404_NOTES.md) — **Threadripper 9975WX (Zen 5)
+  + 2× A16 + RTX 4000 Ada + one dual-port 100G ConnectX-6 Dx, 8 cameras (4× HB-20000 + 4×
+  HB-16000) GPU-Direct one-per-die (24.04 / kernel 6.17)**, Oct 2026: eSDK 4.06→4.08.05 +
+  driver 535 `.run`→595 apt upgrade, and the **8-camera GPU-Direct stall** root-caused and
+  fixed — NIC `PCI_WR_ORDERING=force_relax`, 1 MB rx buffer (`camera-nic-rxbuf.service`),
+  and moving the A16s to the reference rig's slot pattern; switch-as-PTP-grandmaster, camera
+  `LineTime`, orange `line_time` key, and the shared cross-machine debug repo.
 
 **Top lessons (24.04):** the precompiled `nvidia-peermem` is a no-op stub → rebuild via DKMS *after*
 DOCA (`install/gpu-direct/fix_nvidia_peermem_dkms.sh`); driver 590 is gone from apt (transitional →
