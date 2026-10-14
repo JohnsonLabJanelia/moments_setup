@@ -17,13 +17,14 @@ production layout is **one camera per A16 die, GPU-Direct**, recorded by `orange
 
 **Status (2026-10-14):** 8-camera 60 fps GPU-Direct **recording in orange with 0 dropped frames**
 (10,559 frames/camera per 180 s, no NIC discards/pause/PCIe stalls), repeatable; host-staged
-path also 0 drops; red `xp` builds, passes 718+178 tests and plays back the recordings. What it
-took, in order of effect: (1) NIC **`PCI_WR_ORDERING=force_relax`** (killed the 3.4 s stalls),
-(2) NIC rx buffer 156 KB → 1 MB (cut the residual single-frame drops), (3) **moving the A16s and
-the display GPU to the reference rig's slot pattern** (removed the remaining ~0.01 % drops).
-**Pending:** retest with the NIC back at factory defaults to learn whether (1)/(2) are still
-needed after (3); BIOS CBS page comparison with the 462 (never done); commit the orange
-`line_time` change upstream.
+path also 0 drops; red `xp` builds, passes 718+178 tests and plays back the recordings. **Two
+things are required, both verified by reverting them:** (1) NIC **`PCI_WR_ORDERING=force_relax`**
+(without it the 3.4 s stall returns every run, even in the new slots) and (2) **the A16s and the
+display GPU in the reference rig's slot pattern** (without it ~0.01 % residual drops remain).
+A third change tried along the way, the NIC rx buffer 156 KB → 1 MB, helped only in the old slot
+layout and is **not needed** now (rx buffer back at default). **Pending:** BIOS CBS page comparison
+with the 462 to explain why this box needs relaxed ordering at all; commit the orange `line_time`
+change upstream.
 
 ---
 
@@ -108,21 +109,18 @@ Persistent across reboots. Result: **0 stall events in every run since**; drops 
 ~215/camera/event to 0–18 per 180 s. (The reference rig runs the default `per_mkey` and is
 clean — see §3.4 for why.) Revert: `PCI_WR_ORDERING=0` + another `mlxfwreset`.
 
-### 3.3 Fix 2 — NIC receive buffer (the residual drops)
+### 3.3 Tried and dropped — NIC receive buffer
 
-Residual ~0.01 % single-frame drops (2–3 cameras lose the same frame id) remained, only when
-**both A16 cards** receive at once. Enlarging the port rx buffer for priority 0 from the
-default 156 KB to ~1 MB halved them (18/5 → 8/0 per 180 s). Not persistent in NIC NVRAM, so a
-oneshot unit re-applies it at boot — [`install/network/camera-nic-rxbuf.service`](install/network/camera-nic-rxbuf.service):
+Residual ~0.01 % single-frame drops (2–3 cameras lose the same frame id) remained after 3.2,
+only when **both A16 cards** receive at once. In the *old* slot layout, enlarging the port rx
+buffer for priority 0 from the default 156 KB to ~1 MB (`mlnx_qos -i <port>
+--buffer_size=0,1000000,0,0,0,0,0,0`, not persistent, hence
+[`install/network/camera-nic-rxbuf.service`](install/network/camera-nic-rxbuf.service)) halved them
+(18/5 → 8/0 per 180 s). After the card move (3.4) the production layout is 0-drop with the
+**default** buffer (2 × 180 s), so the unit was removed again; it stays in the repo as a
+reference for the knob only. The reference rig runs the default buffer too.
 
-```bash
-sudo cp install/network/camera-nic-rxbuf.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now camera-nic-rxbuf.service
-sudo mlnx_qos -i enp241s0f0np0 | grep -i 'receive buffer'   # 0,999936,0,... max 1027728
-```
-(Interface names are hard-coded in the unit; edit for another host.)
-
-### 3.4 Fix 3 — card placement (the rest of the residual drops)
+### 3.4 Fix 2 — card placement (the residual drops)
 
 With the shared repo's profiler run on both machines, every NIC / PCIe-link / root-port
 capability / OFED / Rivermax setting was **identical** (`diff_profiles.sh`, `lspci -vvv`
@@ -130,17 +128,21 @@ diffs of root ports, A16 bridges and NIC). What differed, besides Zen 5 + BIOS 1
 **where the cards sat**: on the 462 the NIC has a host-bridge quadrant to itself and the A16s
 hang off root ports `00:01.1` / `80:03.1`; here the NIC (`f0`) and A16 #2 (`e0`) sat on
 adjacent host bridges. Rob moved the A16s to the slots the 462 uses (DMI slots 3 and 5) and the
-display GPU to slot 7-ish (§1). Result, all 180 s / 60 fps / 8-camera GPU-Direct, NIC still
-at `force_relax` + 1 MB:
+display GPU to slot 7-ish (§1). Result, all 180 s / 60 fps / 8-camera GPU-Direct, NIC at
+`force_relax` (first three rows still with the 1 MB buffer, last row with the default):
 
 | Test | Before the move | After |
 |---|---|---|
 | production layout, 1 cam/die, both A16s (×2) | 8 / 18+5 drops | **0 / 0**, no counter moved |
 | 2 dies per card, both A16s | 4 / 12 drops | **0** |
 | orange `rob_minimal_8cam_60fps_gpuDirect` recording | 11–12 drops | **0** (10,559 frames/cam) |
+| production layout ×2, **default 156 KB buffer** | — | **0 / 0** |
 
-Still untested: the same four runs with the NIC reverted to factory (`per_mkey`, 156 KB). If
-clean, placement alone explains the whole thing and §3.2/3.3 can be dropped.
+And the control, same slots, **NIC at factory** (`per_mkey`, advanced PCI settings off, 156 KB):
+production ×2 and two-dies-per-card all stalled again (978 / 1236 / 973 drops per 180 s,
+`outbound_pci_stalled_wr_events` +4 per port, pause +24–30 k). So **both** the slot pattern and
+`force_relax` are required; neither alone is enough. Why this platform needs relaxed ordering
+when the Zen 4 / BIOS 0901 reference does not is the one open question (BIOS CBS pages).
 
 ### 3.5 Things that made it worse (don't)
 
@@ -239,7 +241,7 @@ shared with the 462's operator. Read `README.md` → `PLAN.md` → `results/Emer
 - The switch is the PTP grandmaster → no host `ptp4l`; `multistream` disables PTP on the cameras anyway.
 - `gpu_id` is nvidia-smi index only under `PCI_BUS_ID`; the display GPU is index 4 (mid-stack).
 - `evt_eCaptureProServer.service` holds the NIC → stop it before `mlxfwreset`/`mlxconfig`.
-- `mlnx_qos --buffer_size` is not persistent → `camera-nic-rxbuf.service`.
+- `mlnx_qos --buffer_size` is not persistent (and not needed after the slot move); the unit in `install/network/` is reference only.
 - `check_gpudirect.sh` FAILs for `esdk_mellanox_mode` and "preset on display GPU 0" are false positives on 4.08.05 / `PCI_BUS_ID`.
 - `ffprobe` on a recording while orange is still writing → "moov atom not found"; wait for Stop.
 - ASMedia/USB NIC `enx…` "Connection failed" GNOME toasts are unrelated to the camera ports.
