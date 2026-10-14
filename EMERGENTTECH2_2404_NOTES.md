@@ -16,7 +16,8 @@ production layout is **one camera per A16 die, GPU-Direct**, recorded by `orange
 > `github.com:neurogears/emergenttech_gpudirect_debug` (§7).
 
 **Status (2026-10-14):** 8-camera 60 fps GPU-Direct **recording in orange with 0 dropped frames**
-(10,559 frames/camera per 180 s, no NIC discards/pause/PCIe stalls), repeatable; host-staged
+(10,569 frames/camera per 180 s, no NIC discards/pause/PCIe stalls), repeatable (§3.7 is the
+checklist of what must be true); host-staged
 path also 0 drops; red `xp` builds, passes 718+178 tests and plays back the recordings. **Two
 things are required, both verified by reverting them:** (1) NIC **`PCI_WR_ORDERING=force_relax`**
 (without it the 3.4 s stall returns every run, even in the new slots) and (2) **the A16s and the
@@ -106,8 +107,11 @@ sudo mlxfwreset -d f1:00.0 -y reset            # applies without reboot; links d
 sudo mlxconfig -d f1:00.0 q | grep -E 'PCI_WR_ORDERING|ADVANCED'   # force_relax(1) / True(1)
 ```
 Persistent across reboots. Result: **0 stall events in every run since**; drops fell from
-~215/camera/event to 0–18 per 180 s. (The reference rig runs the default `per_mkey` and is
-clean — see §3.4 for why.) Revert: `PCI_WR_ORDERING=0` + another `mlxfwreset`.
+~215/camera/event to 0–18 per 180 s. **Verified required independently of the slot layout:**
+with the cards in the reference pattern (§3.4) and the NIC put back to `per_mkey`, the stall
+came straight back in 3 of 3 runs. The reference rig (Zen 4, BIOS 0901) runs the default
+`per_mkey` and is clean; why this platform differs is not explained (BIOS CBS pages are the
+only lead). Revert: `PCI_WR_ORDERING=0 ADVANCED_PCI_SETTINGS=0` + another `mlxfwreset`.
 
 ### 3.3 Tried and dropped — NIC receive buffer
 
@@ -129,14 +133,16 @@ diffs of root ports, A16 bridges and NIC). What differed, besides Zen 5 + BIOS 1
 hang off root ports `00:01.1` / `80:03.1`; here the NIC (`f0`) and A16 #2 (`e0`) sat on
 adjacent host bridges. Rob moved the A16s to the slots the 462 uses (DMI slots 3 and 5) and the
 display GPU to slot 7-ish (§1). Result, all 180 s / 60 fps / 8-camera GPU-Direct, NIC at
-`force_relax` (first three rows still with the 1 MB buffer, last row with the default):
+`force_relax`:
 
-| Test | Before the move | After |
-|---|---|---|
-| production layout, 1 cam/die, both A16s (×2) | 8 / 18+5 drops | **0 / 0**, no counter moved |
-| 2 dies per card, both A16s | 4 / 12 drops | **0** |
-| orange `rob_minimal_8cam_60fps_gpuDirect` recording | 11–12 drops | **0** (10,559 frames/cam) |
-| production layout ×2, **default 156 KB buffer** | — | **0 / 0** |
+| Test | Before the move (1 MB buffer) | After, 1 MB buffer | After, **default 156 KB buffer** (final state) |
+|---|---|---|---|
+| production layout, 1 cam/die, both A16s (×2) | 8 / 18+5 drops | **0 / 0** | **0 / 0** |
+| 2 dies per card, both A16s | 4 / 12 drops | **0** | **0** (86,414 frames) |
+| orange `rob_minimal_8cam_60fps_gpuDirect` recording | 11–12 drops | **0** (10,559 frames/cam) | **0** (10,569 frames/cam) |
+
+"No counter moved" in every "after" run: `rx_discards_phy`, `tx_pause_ctrl_phy`,
+`outbound_pci_stalled_wr_events` all +0 on both ports.
 
 And the control, same slots, **NIC at factory** (`per_mkey`, advanced PCI settings off, 156 KB):
 production ×2 and two-dies-per-card all stalled again (978 / 1236 / 973 drops per 180 s,
@@ -169,6 +175,22 @@ sudo -E tools/multistream_layout.sh prod8 180 \
 # outbound_pci_stalled_wr_events on both ports). Confirm buffers land on dies 0-3 / 5-8:
 nvidia-smi dmon -s t -c 3    # ~1.25 GB/s rx per card-1 die, ~1.0 GB/s per card-2 die, display 0
 ```
+
+### 3.7 Final configuration — what must be true on this box
+
+1. **Slots:** A16 #1 under root port `00:01.1` (bus 05–08), A16 #2 under `c0:01.1` (bus c5–c8),
+   display GPU under `20:01.1`, NIC under `f0:01.1` — check with `lspci -tv`; nvidia-smi
+   indices 0–3 / 4 / 5–8 under `PCI_BUS_ID`.
+2. **NIC NVRAM:** `sudo mlxconfig -d f1:00.0 q | grep -E 'PCI_WR_ORDERING|ADVANCED'` →
+   `force_relax(1)` / `True(1)`. Everything else on the NIC at factory, incl. the rx buffer
+   (`mlnx_qos -i enp241s0f0np0` → `0,156096,0,…`); **no** `camera-nic-rxbuf.service` installed.
+3. **Boot:** kernel 6.17.0-40 (HWE metas held), `amd_iommu=off pcie_aspm=off`,
+   `nvidia_peermem` loaded and used by `ib_uverbs`, `evt_mellanox_init` + `evt_nvidia_peermem` enabled.
+4. **Cameras:** `LineTime` 1402 / 2032 (orange presets set it; after any camera power-cycle
+   `multistream -j u,LineTime,max` or just open them in orange), HB-20000s on port 0 only,
+   HB-16000s on port 1 only, switch as PTP grandmaster, no host `ptp4l`.
+5. **Pass criterion:** §3.6 recipe → `frames=86416 drops=0`, `nic: no counter changed`; orange
+   `rob_minimal_8cam_60fps_gpuDirect` 180 s → `Dropped Frames: 0` on all eight.
 
 ## 4. Camera network and PTP
 
