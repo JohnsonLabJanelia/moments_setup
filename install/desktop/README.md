@@ -12,7 +12,11 @@ per-user launchers under `~/.local/share`).
 ```bash
 ./install_launchers.sh          # install both launchers + icons
 ./install_launchers.sh --pin    # also pin both to the GNOME dash (favorites)
+./install_launchers.sh --red-only --pin   # red-only machine: no orange icon/launcher
 ```
+
+Use `--red-only` on machines that only run red (viewing/proofreading boxes) — without
+it, `--pin` also pins an orange launcher that has nothing to run.
 
 What it does:
 
@@ -30,8 +34,9 @@ What it does:
 | **orange** | `true` | the launcher starts PTP (ptp4l/phc2sys) and runs orange under `sudo -E`; a terminal shows PTP status and can prompt for the sudo password if passwordless sudo isn't configured |
 | **red** | `false` | offline labeling — no PTP, no cameras, no sudo |
 
-> `StartupWMClass` is set to `orange` / `red` so a running window groups under the
-> pinned dash icon. If a *second* icon appears while the app runs, the real WM
+> `StartupWMClass` is set to `orange` / `Red` so a running window groups under the
+> pinned dash icon. red's GLFW window reports `WM_CLASS = "Red", "Red"` (capital R —
+> measured with `xprop` on red `xp` `9654b3e`, Nov 2026; it was previously set to `red`). If a *second* icon appears while the app runs, the real WM
 > class differs — find it with `xprop WM_CLASS` (click the window) and fix the
 > `StartupWMClass=` line.
 

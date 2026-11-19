@@ -11,13 +11,21 @@
 # Usage:
 #   ./install_launchers.sh            # install both launchers + icons
 #   ./install_launchers.sh --pin      # also pin both to the GNOME dash (favorites)
+#   ./install_launchers.sh --red-only --pin   # red-only machine (no orange launcher/icon)
 #
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ "$(id -u)" -ne 0 ] || { echo "Run as your normal user, NOT root/sudo (per-user launchers)." >&2; exit 1; }
 
-PIN=0; [ "${1:-}" = "--pin" ] && PIN=1
+PIN=0; RED_ONLY=0
+for a in "$@"; do
+  case "$a" in
+    --pin) PIN=1 ;;
+    --red-only) RED_ONLY=1 ;;
+    *) echo "unknown option: $a" >&2; exit 2 ;;
+  esac
+done
 
 XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 APPDIR="$XDG_DATA_HOME/applications"
@@ -25,7 +33,7 @@ ICONDIR="$XDG_DATA_HOME/icons"
 mkdir -p "$APPDIR" "$ICONDIR"
 
 # --- icons ---
-install -m 644 "$HERE/orange_icon.png" "$ICONDIR/orange_icon.png"
+[ "$RED_ONLY" -eq 1 ] || install -m 644 "$HERE/orange_icon.png" "$ICONDIR/orange_icon.png"
 install -m 644 "$HERE/red_icon.png"    "$ICONDIR/red_icon.png"
 
 # --- resolve the launcher commands ---
@@ -37,15 +45,16 @@ ORANGE_EXEC="$(command -v orange || true)"
 RED_EXEC="$(command -v red || true)"
 [ -n "$RED_EXEC" ] || RED_EXEC="$HOME/.local/bin/red"
 
-echo "orange launcher: $ORANGE_EXEC"
+[ "$RED_ONLY" -eq 1 ] || echo "orange launcher: $ORANGE_EXEC"
 echo "red launcher   : $RED_EXEC"
-[ -e "${ORANGE_EXEC%% *}" ] || echo "  WARN: orange launcher not found yet (install network/orange_launcher.sh)"
+[ "$RED_ONLY" -eq 1 ] || [ -e "${ORANGE_EXEC%% *}" ] || echo "  WARN: orange launcher not found yet (install network/orange_launcher.sh)"
 [ -e "${RED_EXEC%% *}" ]    || echo "  WARN: red launcher not found yet (run red's install.sh)"
 
 # --- orange.desktop (opens a terminal: shows PTP status, can prompt for sudo) ---
 # ORANGE_HOLD=1 tells the launcher to keep this (throwaway) terminal open after
 # orange exits, so its shutdown printouts stay visible instead of vanishing when
 # gnome-terminal auto-closes. (Plain CLI `orange` is unaffected.)
+if [ "$RED_ONLY" -eq 0 ]; then
 cat > "$APPDIR/orange.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -62,6 +71,7 @@ Keywords=camera;record;capture;moments;
 StartupNotify=true
 StartupWMClass=orange
 EOF
+fi
 
 # --- red.desktop (offline labeling GUI; no PTP/sudo) ---
 cat > "$APPDIR/red.desktop" <<EOF
@@ -79,11 +89,11 @@ Categories=Graphics;
 Keywords=label;annotate;keypoint;jarvis;moments;
 MimeType=application/x-red-project;
 StartupNotify=true
-StartupWMClass=red
+StartupWMClass=Red
 EOF
 
 command -v desktop-file-validate >/dev/null && {
-  desktop-file-validate "$APPDIR/orange.desktop" && echo "orange.desktop valid"
+  [ "$RED_ONLY" -eq 1 ] || { desktop-file-validate "$APPDIR/orange.desktop" && echo "orange.desktop valid"; }
   desktop-file-validate "$APPDIR/red.desktop"    && echo "red.desktop valid"
 }
 command -v update-desktop-database >/dev/null && update-desktop-database "$APPDIR" 2>/dev/null || true
@@ -93,7 +103,8 @@ echo "Installed launchers in $APPDIR"
 if [ "$PIN" -eq 1 ]; then
   if command -v gsettings >/dev/null; then
     cur="$(gsettings get org.gnome.shell favorite-apps)"
-    for app in orange.desktop red.desktop; do
+    APPS="orange.desktop red.desktop"; [ "$RED_ONLY" -eq 1 ] && APPS="red.desktop"
+    for app in $APPS; do
       echo "$cur" | grep -q "'$app'" || cur="$(echo "$cur" | sed "s/]$/, '$app']/; s/^\[]/['$app']/")"
     done
     gsettings set org.gnome.shell favorite-apps "$cur" && echo "pinned to dash: $cur"

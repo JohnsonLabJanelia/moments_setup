@@ -37,6 +37,12 @@ they capture the exact working stack and every gotcha we hit:
   ConnectX-5 + 25G-LR fiber link bring-up (forced speed, no autoneg), a 65 MP **mono**
   camera (HB-65000GM) config, GPU-Direct into the display GPU, and `intel_iommu=off` on an
   Intel box. Setup driven end-to-end by Claude Fable 5.
+- [`RED_A4000_XEON_2404_NOTES.md`](RED_A4000_XEON_2404_NOTES.md) — **red-only viewing /
+  proofreading box: dual Xeon (Supermicro X12DAi-N6) + RTX A4000 / 24.04 / kernel 7.0 /
+  driver 595**, Nov 2026: no orange, no payload; scripted in
+  [`install/red-only/`](install/red-only/). Also: the CUDA apt repo's `pin-600` would swap
+  Ubuntu driver-side packages (counter-pin it — applies to every 24.04 box), the GPU stuck
+  at PCIe x4 by BIOS slot bifurcation, and red's window class is `Red`.
 - [`PUGET_2404_NOTES.md`](PUGET_2404_NOTES.md) — **Threadripper 9965WX + RTX PRO 4000
   Blackwell + 4× HE-5000 10G mono cameras (24.04 / kernel 6.17)**, Sept–Oct 2026: eSDK
   4.08.05 (no CUDA-12 shim needed), DOCA pre-installed to dodge the apt fights, peermem stub
